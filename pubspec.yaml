@@ -1,0 +1,7 @@
+name: testing
+version: 0.0.1-dev
+description: Infrastructure for standalone tests.
+author: reify-dart@googlegroups.com
+homepage: https://github.com/peter-ahe-google/testing
+
+dependencies:
