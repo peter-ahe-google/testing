@@ -2,12 +2,19 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE.md file.
 
-library rasta.testa;
+library testing.run_tests;
+
+import 'dart:async' show
+    Stream,
+    Future;
+
+import 'dart:convert' show
+    LineSplitter,
+    UTF8;
 
 import 'dart:io' show
     Directory,
     File,
-    Platform,
     Process,
     stderr,
     stdout;
@@ -15,20 +22,20 @@ import 'dart:io' show
 import 'dart:isolate' show
     ReceivePort;
 
-import 'dart:async' show
-    Future;
-
-import 'package:rasta/testing.dart' show
+import '../testing.dart' show
     TestDescription,
     dartArguments,
     dartSdk,
     listTests,
     startDart;
 
-main() async {
+Uri testRoot;
+
+main(List<String> arguments) async {
+  testRoot = Uri.base.resolve(arguments.single);
   final ReceivePort port = new ReceivePort();
   List<TestDescription> descriptions =
-      await listTests(<Uri>[Platform.script.resolve(".")]).toList();
+      await listTests(<Uri>[testRoot.resolve(".")]).toList();
   descriptions.sort();
   List<TestDescription> unitTests = <TestDescription>[];
   List<TestDescription> goldenTests = <TestDescription>[];
@@ -41,8 +48,9 @@ main() async {
   }
   await analyzeTests(unitTests);
   StringBuffer sb = new StringBuffer();
-  sb.writeln("library testa_combined;\n");
-  sb.writeln("import '${Platform.script.path}' show runTests;\n");
+  sb.writeln("library testing.combined;\n");
+  sb.writeln("import 'dart:io' show Directory;\n");
+  sb.writeln("import 'package:testing/src/run_tests.dart' show runTests;\n");
   for (TestDescription description in unitTests) {
     String shortName = description.shortName.replaceAll("/", "__");
     sb.writeln(
@@ -50,6 +58,7 @@ main() async {
         "show main;");
   }
   sb.writeln("\nvoid main() {");
+  sb.writeln("  Directory.current = '${testRoot.resolve('..').toFilePath()}';");
   sb.writeln("  runTests(<String, Function> {");
   for (TestDescription description in unitTests) {
     String shortName = description.shortName.replaceAll("/", "__");
@@ -88,6 +97,52 @@ main() async {
   port.close();
 }
 
+class AnalyzerDiagnostic {
+  final String kind;
+
+  final String detailedKind;
+
+  final String code;
+
+  final Uri uri;
+
+  final int line;
+
+  final int startColumn;
+
+  final int endColumn;
+
+  final String message;
+
+  AnalyzerDiagnostic(this.kind, this.detailedKind, this.code, this.uri,
+      this.line, this.startColumn, this.endColumn, this.message);
+
+  factory AnalyzerDiagnostic.fromLine(String line) {
+    List<String> parts = line.split("|");
+    if (parts.length != 8) {
+      throw "Malformed output: $line";
+    }
+    return new AnalyzerDiagnostic(parts[0], parts[1], parts[2],
+        Uri.base.resolve(parts[3]),
+        int.parse(parts[4]), int.parse(parts[5]), int.parse(parts[6]),
+        parts[7]);
+  }
+
+  String toString() {
+    return "$uri:$line:$startColumn: "
+        "${kind == 'INFO' ? 'warning: hint' : kind.toLowerCase()}:\n$message";
+  }
+}
+
+Stream<AnalyzerDiagnostic> parseAnalyzerOutput(
+    Stream<List<int>> stream) async* {
+  Stream<String> lines =
+      stream.transform(UTF8.decoder).transform(new LineSplitter());
+  await for (String line in lines) {
+    yield new AnalyzerDiagnostic.fromLine(line);
+  }
+}
+
 /// Run dartanalyzer on all tests in [descriptions],
 /// "../lib/reify_transformer.dart", and this script.
 Future<Null> analyzeTests(List<TestDescription> descriptions) async {
@@ -96,40 +151,43 @@ Future<Null> analyzeTests(List<TestDescription> descriptions) async {
   if (!await new File.fromUri(analyzer).exists()) {
     throw "Couldn't find '$analyzerPath' in '${dartSdk.toFilePath()}'";
   }
-  List<String> arguments = new List<String>.from(
+  List<String> arguments = <String>[
+      "--packages=${testRoot.resolve('.packages').toFilePath()}",
+      "--package-warnings",
+      "--format=machine",
+  ];
+  arguments.addAll(
       descriptions.map(
           (TestDescription desciption) => desciption.uri.toFilePath()));
   arguments
-      ..add(Platform.script.resolve("../lib/reify_transformer.dart")
+      ..add(testRoot.resolve("../lib/reify_transformer.dart")
             .toFilePath())
-      ..add(Platform.script.resolve("../bin/dartk.dart")
+      ..add(testRoot.resolve("../bin/dartk.dart")
             .toFilePath())
-      ..add(Platform.script.resolve("../bin/repl.dart")
+      ..add(testRoot.resolve("../bin/repl.dart")
             .toFilePath())
-      ..add(Platform.script.toFilePath());
-  print("Running analyzer");
+      ..add(testRoot.resolve("log_analyzer.dart")
+            .toFilePath());
+  print("Running analyzer on $arguments");
   Stopwatch sw = new Stopwatch()..start();
   Process process = await Process.start(
-      "./run_analyzer.sh", arguments,
+      dartSdk.resolve("bin/dartanalyzer").toFilePath(),
+      arguments,
       environment: {"DART_SDK": dartSdk.toFilePath()});
   process.stdin.close();
-  bool hasStdout = false;
-  bool hasStderr = false;
-  Future stdoutFuture = process.stdout.listen((data) {
-    stdout.add(data);
-    hasStdout = true;
-  }).asFuture();
-  Future stderrFuture = process.stderr.listen((data) {
-    stderr.add(data);
-    hasStderr = true;
-  }).asFuture();
-  int exitCode = await process.exitCode;
-  await stdoutFuture;
-  await stderrFuture;
-  if (exitCode != 0) {
-    throw "Non-zero exit code ($exitCode) from analyzer.";
+  Future stdoutFuture = parseAnalyzerOutput(process.stdout).toList();
+  Future stderrFuture = parseAnalyzerOutput(process.stderr).toList();
+  await process.exitCode;
+  List<AnalyzerDiagnostic> diagnostics = <AnalyzerDiagnostic>[];
+  diagnostics.addAll(await stdoutFuture);
+  diagnostics.addAll(await stderrFuture);
+  bool hasOutput = false;
+  for (AnalyzerDiagnostic diagnostic in diagnostics) {
+    if (diagnostic.uri.path.contains("/third_party")) continue;
+    hasOutput = true;
+    print(diagnostic);
   }
-  if (hasStdout || hasStderr) {
+  if (hasOutput) {
     throw "Non-empty output from analyzer.";
   }
   sw.stop();
