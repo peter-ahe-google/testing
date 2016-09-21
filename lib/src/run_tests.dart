@@ -30,11 +30,11 @@ import '../testing.dart' show
     startDart;
 
 import 'test_root.dart' show
-    Suite,
+    DartCombined,
     TestRoot;
 
 Stream<TestDescription> listRoots(TestRoot root) async* {
-  for (Suite suite in root.dartCombined) {
+  for (DartCombined suite in root.dartCombined) {
     await for (TestDescription description in
                    listTests(<Uri>[suite.uri], pattern: "")) {
       String path = description.file.uri.path;

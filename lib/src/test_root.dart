@@ -21,23 +21,7 @@ import 'dart:io' show
 ///       "packages": "test/.packages",
 ///       # A list of test suites (collection of tests).
 ///       "suites": [
-///         {
-///           "name": "test",
-///           # Root directory of tests in this suite.
-///           "path": "test/",
-///           # So far, only one kind of suite is recognized: `Dart
-///           # (combined)`.
-///           "kind": "Dart (combined)",
-///           # Files in `path` that match any of the following regular
-///           # expressions are considered to be part of this suite.
-///           "pattern": [
-///             "_test.dart$"
-///           ],
-///           # Except if they match any of the following regular expressions.
-///           "exclude": [
-///             "/golden/"
-///           ]
-///         }
+///         # A list of suite objects. See the subclasses of [Suite] below.
 ///       ],
 ///       "analyze": {
 ///         # Uris to analyze.
@@ -67,8 +51,9 @@ class TestRoot {
   TestRoot(this.packages, this.suites, this.urisToAnalyze,
       this.excludedFromAnalysis);
 
-  Iterable<Suite> get dartCombined {
-    return suites.where((Suite suite) => suite.kind == "Dart (combined)");
+  Iterable<DartCombined> get dartCombined {
+    return new List<DartCombined>.from(
+        suites.where((Suite suite) => suite.kind == "Dart (combined)"));
   }
 
   String toString() {
@@ -95,35 +80,95 @@ class TestRoot {
 }
 
 /// Records the properties of a test suite.
-class Suite {
+abstract class Suite {
   final String name;
 
-  final Uri uri;
-
   final String kind;
+
+  Suite(this.name, this.kind);
+
+  factory Suite.fromJsonMap(Uri base, Map json) {
+    String kind = json["kind"].toLowerCase();
+    String name = json["name"];
+    switch (kind) {
+      case "dart (combined)":
+        return new DartCombined.fromJsonMap(base, json, name, kind);
+
+      case "compilation":
+        return new Compilation.fromJsonMap(base, json, name, kind);
+
+      default:
+        throw "Suite '$name' has unknown kind '$kind'.";
+    }
+  }
+
+  String toString() => "Suite($name, $kind)";
+}
+
+/// A suite of standalone tests. The tests are combined and run as one program.
+///
+/// A standalone test is a test with a `main` method. The test is considered
+/// successful if main doesn't throw an error (or if `main` returns a future,
+/// that future completes without errors).
+///
+/// The tests are combined by generating a Dart file which imports all the main
+/// methods and calls them sequentially.
+///
+/// Example JSON configuration:
+///
+///     {
+///       "name": "test",
+///       "kind": "Dart (combined)",
+///       # Root directory of tests in this suite.
+///       "path": "test/",
+///       # Files in `path` that match any of the following regular expressions
+///       # are considered to be part of this suite.
+///       "pattern": [
+///         "_test.dart$"
+///       ],
+///       # Except if they match any of the following regular expressions.
+///       "exclude": [
+///         "/golden/"
+///       ]
+///     }
+class DartCombined extends Suite {
+  final Uri uri;
 
   final List<RegExp> pattern;
 
   final List<RegExp> exclude;
 
-  Suite(this.name, this.uri, this.kind, this.pattern, this.exclude);
+  DartCombined(String name, String kind, this.uri, this.pattern, this.exclude)
+      : super(name, kind);
 
-  factory Suite.fromJsonMap(Uri base, Map json) {
-    String name = json["name"];
+  factory DartCombined.fromJsonMap(
+      Uri base, Map json, String name, String kind) {
     Uri uri = base.resolve(json["path"]);
-    String kind = json["kind"];
     List<RegExp> pattern = new List<RegExp>.from(
         json["pattern"].map((String p) => new RegExp(p)));
     List<RegExp> exclude = new List<RegExp>.from(
         json["exclude"].map((String p) => new RegExp(p)));
-    return new Suite(name, uri, kind, pattern, exclude);
+    return new DartCombined(name, kind, uri, pattern, exclude);
   }
 
-  String toString() => "Suite($name, $uri, $kind, $pattern, $exclude)";
+  String toString() => "DartCombined($name, $uri, $pattern, $exclude)";
 }
 
-main(List<String> arguments) async {
-  for (String argument in arguments) {
-    print(await TestRoot.fromUri(Uri.base.resolve(argument)));
+class Compilation extends Suite {
+  final Uri uri = Uri.base.resolve("test/golden/");
+
+  final Uri statusFile = Uri.base.resolve("test/reify.status");
+
+  final List<RegExp> pattern = <RegExp>[new RegExp(r"\.dart$")];
+
+  final List<RegExp> exclude = <RegExp>[];
+
+  Compilation(String name, String kind)
+      : super(name, kind);
+
+  factory Compilation.fromJsonMap(
+      Uri base, Map json, String name, String kind) {
+    // TODO(ahe): Initialize above field with values from [json].
+    return new Compilation(name, kind);
   }
 }
