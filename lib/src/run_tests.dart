@@ -29,38 +29,48 @@ import '../testing.dart' show
     listTests,
     startDart;
 
-Uri testRoot;
+import 'test_root.dart' show
+    Suite,
+    TestRoot;
 
-main(List<String> arguments) async {
-  testRoot = Uri.base.resolve(arguments.single);
-  final ReceivePort port = new ReceivePort();
-  List<TestDescription> descriptions =
-      await listTests(<Uri>[testRoot.resolve(".")]).toList();
-  descriptions.sort();
-  List<TestDescription> unitTests = <TestDescription>[];
-  List<TestDescription> goldenTests = <TestDescription>[];
-  for (TestDescription description in descriptions) {
-    if (description.uri.path.contains("/golden/")) {
-      goldenTests.add(description);
-    } else {
-      unitTests.add(description);
+Stream<TestDescription> listRoots(TestRoot root) async* {
+  for (Suite suite in root.dartCombined) {
+    await for (TestDescription description in
+                   listTests(<Uri>[suite.uri], pattern: "")) {
+      String path = description.file.uri.path;
+      if (suite.exclude.any((RegExp r) => path.contains(r))) continue;
+      if (suite.pattern.any((RegExp r) => path.contains(r))) {
+        yield description;
+      }
     }
   }
-  await analyzeTests(unitTests);
+}
+
+main(List<String> arguments) async {
+  final ReceivePort port = new ReceivePort();
+  TestRoot testRoot =
+      await TestRoot.fromUri(Uri.base.resolve(arguments.single));
+  List<TestDescription> descriptions = await listRoots(testRoot).toList();
+  descriptions.sort();
+  List<Uri> urisToAnalyze = <Uri>[]
+      ..addAll(testRoot.urisToAnalyze)
+      ..addAll(
+          descriptions.map((TestDescription description) => description.uri));
+  await analyzeUris(
+      testRoot.packages, urisToAnalyze, testRoot.excludedFromAnalysis);
   StringBuffer sb = new StringBuffer();
   sb.writeln("library testing.combined;\n");
   sb.writeln("import 'dart:io' show Directory;\n");
   sb.writeln("import 'package:testing/src/run_tests.dart' show runTests;\n");
-  for (TestDescription description in unitTests) {
+  for (TestDescription description in descriptions) {
     String shortName = description.shortName.replaceAll("/", "__");
     sb.writeln(
         "import '${description.uri.path}' as $shortName "
         "show main;");
   }
   sb.writeln("\nvoid main() {");
-  sb.writeln("  Directory.current = '${testRoot.resolve('..').toFilePath()}';");
   sb.writeln("  runTests(<String, Function> {");
-  for (TestDescription description in unitTests) {
+  for (TestDescription description in descriptions) {
     String shortName = description.shortName.replaceAll("/", "__");
     sb.writeln(
         '    "$shortName": $shortName.main,');
@@ -143,37 +153,23 @@ Stream<AnalyzerDiagnostic> parseAnalyzerOutput(
   }
 }
 
-/// Run dartanalyzer on all tests in [descriptions],
-/// "../lib/reify_transformer.dart", and this script.
-Future<Null> analyzeTests(List<TestDescription> descriptions) async {
+/// Run dartanalyzer on all tests in [uris].
+Future<Null> analyzeUris(
+    Uri packages, List<Uri> uris, List<RegExp> exclude) async {
   const String analyzerPath = "bin/dartanalyzer";
   Uri analyzer = dartSdk.resolve(analyzerPath);
   if (!await new File.fromUri(analyzer).exists()) {
     throw "Couldn't find '$analyzerPath' in '${dartSdk.toFilePath()}'";
   }
   List<String> arguments = <String>[
-      "--packages=${testRoot.resolve('.packages').toFilePath()}",
+      "--packages=${packages.toFilePath()}",
       "--package-warnings",
       "--format=machine",
   ];
-  arguments.addAll(
-      descriptions.map(
-          (TestDescription desciption) => desciption.uri.toFilePath()));
-  arguments
-      ..add(testRoot.resolve("../lib/reify_transformer.dart")
-            .toFilePath())
-      ..add(testRoot.resolve("../bin/dartk.dart")
-            .toFilePath())
-      ..add(testRoot.resolve("../bin/repl.dart")
-            .toFilePath())
-      ..add(testRoot.resolve("log_analyzer.dart")
-            .toFilePath());
-  print("Running analyzer on $arguments");
+  arguments.addAll(uris.map((Uri uri) => uri.toFilePath()));
+  print("Running ${analyzer.toFilePath()} ${arguments.join(' ')}");
   Stopwatch sw = new Stopwatch()..start();
-  Process process = await Process.start(
-      dartSdk.resolve("bin/dartanalyzer").toFilePath(),
-      arguments,
-      environment: {"DART_SDK": dartSdk.toFilePath()});
+  Process process = await Process.start(analyzer.toFilePath(), arguments);
   process.stdin.close();
   Future stdoutFuture = parseAnalyzerOutput(process.stdout).toList();
   Future stderrFuture = parseAnalyzerOutput(process.stderr).toList();
@@ -183,7 +179,8 @@ Future<Null> analyzeTests(List<TestDescription> descriptions) async {
   diagnostics.addAll(await stderrFuture);
   bool hasOutput = false;
   for (AnalyzerDiagnostic diagnostic in diagnostics) {
-    if (diagnostic.uri.path.contains("/third_party")) continue;
+    String path = diagnostic.uri.path;
+    if (exclude.any((RegExp r) => path.contains(r))) continue;
     hasOutput = true;
     print(diagnostic);
   }
