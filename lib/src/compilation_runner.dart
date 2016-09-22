@@ -30,8 +30,7 @@ import 'test_dart/status_file_parser.dart' show
 import 'zone_helper.dart' show
     runGuarded;
 
-import 'log.dart' show
-    logTestComplete;
+import 'log.dart';
 
 typedef Future<SuiteContext> CreateSuiteContext(Compilation);
 
@@ -66,16 +65,19 @@ abstract class SuiteContext {
           input = result.output;
         } else {
           if (!expectedOutcomes.contains(result.outcome)) {
-            print(sb);
+            if (!isVerbose) {
+              print(sb);
+            }
             unexpectedResults[description] = result;
           }
           break;
         }
       }
+      logMessage(sb);
       logTestComplete(++completed, unexpectedResults.length,
           descriptions.length, suffix: ": ${suite.name}");
     }
-    print("");
+    logSuiteComplete();
     unexpectedResults.forEach((TestDescription description, Result result) {
       exitCode = 1;
       print("FAILED: ${description.shortName}");

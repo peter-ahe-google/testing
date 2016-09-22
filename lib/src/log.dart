@@ -12,12 +12,31 @@ const String cursorUp = "\u001b[1A";
 /// See [CSI codes](https://en.wikipedia.org/wiki/ANSI_escape_code#CSI_codes).
 const String eraseLine = "\u001b[2K";
 
+const bool isVerbose = const bool.fromEnvironment("verbose");
+
 void logTestComplete(int completed, int failed, int total, {String suffix}) {
   suffix ??= "";
   String percent = pad((completed / total * 100.0).toStringAsFixed(1), 5);
   String good = pad(completed, 5);
   String bad = pad(failed, 5);
-  print("$eraseLine[ $percent% | +$good | -$bad ]$suffix$cursorUp");
+  String message = "[ $percent% | +$good | -$bad ]$suffix";
+  if (isVerbose) {
+    print(message);
+  } else {
+    print("$eraseLine$message$cursorUp");
+  }
+}
+
+void logMessage(Object message) {
+  if (isVerbose) {
+    print("$message");
+  }
+}
+
+void logSuiteComplete() {
+  if (!isVerbose) {
+    print("");
+  }
 }
 
 String pad(Object o, int pad) {

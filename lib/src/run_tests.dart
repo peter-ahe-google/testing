@@ -38,8 +38,29 @@ import 'test_root.dart' show
 import 'zone_helper.dart' show
     runGuarded;
 
-import 'log.dart' show
-    logTestComplete;
+import 'log.dart';
+
+class CommandLine {
+  final Set<String> options;
+  final List<String> arguments;
+
+  CommandLine(this.options, this.arguments);
+
+  static CommandLine parse(List<String> arguments) {
+    int index = arguments.indexOf("--");
+    Set<String> options;
+    if (index != -1) {
+      options = new Set<String>.from(arguments.getRange(0, index - 1));
+      arguments = arguments.sublist(index + 1);
+    } else {
+      options =
+          arguments.where((argument) => argument.startsWith("-")).toSet();
+      arguments =
+          arguments.where((argument) => !argument.startsWith("-")).toList();
+    }
+    return new CommandLine(options, arguments);
+  }
+}
 
 Stream<TestDescription> listRoots(TestRoot root) async* {
   for (DartCombined suite in root.dartCombined) {
@@ -56,16 +77,22 @@ Stream<TestDescription> listRoots(TestRoot root) async* {
 
 main(List<String> arguments) async {
   final ReceivePort port = new ReceivePort();
+  CommandLine cl = CommandLine.parse(arguments);
+  final bool isVerbose =
+      cl.options.contains("--verbose") || cl.options.contains("-v");
+  if (!isVerbose) {
+    print("Use --verbose to display more details.");
+  }
   TestRoot testRoot =
-      await TestRoot.fromUri(Uri.base.resolve(arguments.single));
+      await TestRoot.fromUri(Uri.base.resolve(cl.arguments.single));
   List<TestDescription> descriptions = await listRoots(testRoot).toList();
   descriptions.sort();
   List<Uri> urisToAnalyze = <Uri>[]
       ..addAll(testRoot.urisToAnalyze)
       ..addAll(
           descriptions.map((TestDescription description) => description.uri));
-  await analyzeUris(
-      testRoot.packages, urisToAnalyze, testRoot.excludedFromAnalysis);
+  await analyzeUris(testRoot.packages, urisToAnalyze,
+      testRoot.excludedFromAnalysis, isVerbose: isVerbose);
   StringBuffer sb = new StringBuffer();
   sb.writeln("library testing.combined;\n");
   sb.writeln("import 'dart:async' show Future;\n");
@@ -102,11 +129,15 @@ main(List<String> arguments) async {
   try {
     File generated = new File.fromUri(tmp.uri.resolve("generated.dart"));
     await generated.writeAsString("$sb", flush: true);
-    print("==> ${generated.path} <==");
-    print(numberedLines('$sb'));
+    if (isVerbose) {
+      print("==> ${generated.path} <==");
+      print(numberedLines('$sb'));
+    } else {
+      print("Running ${generated.path}.");
+    }
     Process process = await startDart(
         generated.uri, null,
-        <String>["-Dverbose=false"]..addAll(dartArguments));
+        <String>["-Dverbose=$isVerbose"]..addAll(dartArguments));
     process.stdin.close();
     Future stdoutFuture =
         process.stdout.listen((data) => stdout.add(data)).asFuture();
@@ -122,7 +153,7 @@ main(List<String> arguments) async {
     tmp.delete(recursive: true);
   }
   sw.stop();
-  print("Running tests took: ${sw.elapsed}");
+  print("Running tests took: ${sw.elapsed}.");
   port.close();
 }
 
@@ -173,8 +204,8 @@ Stream<AnalyzerDiagnostic> parseAnalyzerOutput(
 }
 
 /// Run dartanalyzer on all tests in [uris].
-Future<Null> analyzeUris(
-    Uri packages, List<Uri> uris, List<RegExp> exclude) async {
+Future<Null> analyzeUris(Uri packages, List<Uri> uris, List<RegExp> exclude,
+    {bool isVerbose: false}) async {
   const String analyzerPath = "bin/dartanalyzer";
   Uri analyzer = dartSdk.resolve(analyzerPath);
   if (!await new File.fromUri(analyzer).exists()) {
@@ -186,7 +217,11 @@ Future<Null> analyzeUris(
       "--format=machine",
   ];
   arguments.addAll(uris.map((Uri uri) => uri.toFilePath()));
-  print("Running ${analyzer.toFilePath()} ${arguments.join(' ')}");
+  if (isVerbose) {
+    print("Running ${analyzer.toFilePath()} ${arguments.join(' ')}.");
+  } else {
+    print("Running dartanalyzer.");
+  }
   Stopwatch sw = new Stopwatch()..start();
   Process process = await Process.start(analyzer.toFilePath(), arguments);
   process.stdin.close();
@@ -207,7 +242,7 @@ Future<Null> analyzeUris(
     throw "Non-empty output from analyzer.";
   }
   sw.stop();
-  print("Running analyzer took: ${sw.elapsed}");
+  print("Running analyzer took: ${sw.elapsed}.");
 }
 
 Future<Null> runTests(Map<String, Function> tests) async {
@@ -220,13 +255,14 @@ Future<Null> runTests(Map<String, Function> tests) async {
         print("Running test $name");
         return tests[name]();
       }, printLineOnStdout: sb.writeln);
+      logMessage(sb);
     } catch (e) {
       print(sb);
       rethrow;
     }
     logTestComplete(++completed, 0, tests.length);
   }
-  print("");
+  logSuiteComplete();
   port.close();
 }
 
