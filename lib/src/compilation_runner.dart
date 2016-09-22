@@ -27,6 +27,11 @@ import 'test_dart/status_file_parser.dart' show
     ReadTestExpectations,
     TestExpectations;
 
+import 'zone_helper.dart' show
+    runGuarded;
+
+import 'log.dart' show
+    logTestComplete;
 
 typedef Future<SuiteContext> CreateSuiteContext(Compilation);
 
@@ -43,6 +48,7 @@ abstract class SuiteContext {
     descriptions.sort();
     Map<TestDescription, Result> unexpectedResults =
         <TestDescription, Result>{};
+    int completed = 0;
     for (TestDescription description in descriptions) {
       Set<Expectation> expectedOutcomes =
           expectations.expectations(description.shortName);
@@ -50,20 +56,26 @@ abstract class SuiteContext {
       // The input of the first step is [description]. The input to step n+1 is
       // the output of step n.
       dynamic input = description;
+      StringBuffer sb = new StringBuffer();
       for (Step step in steps) {
-        print("Running ${step.name}.");
-        result = await step.run(input, this);
+        result = await runGuarded(() {
+          print("Running ${step.name}.");
+          return step.run(input, this);
+        }, printLineOnStdout: sb.writeln);
         if (result.outcome == Expectation.PASS) {
           input = result.output;
         } else {
           if (!expectedOutcomes.contains(result.outcome)) {
+            print(sb);
             unexpectedResults[description] = result;
           }
           break;
         }
       }
+      logTestComplete(++completed, unexpectedResults.length,
+          descriptions.length, suffix: ": ${suite.name}");
     }
-
+    print("");
     unexpectedResults.forEach((TestDescription description, Result result) {
       exitCode = 1;
       print("FAILED: ${description.shortName}");
@@ -115,6 +127,7 @@ Stream<TestDescription> listCompilationTests(Compilation compilation) async* {
 /// This is called from generated code.
 Future<Null> runCompilation(CreateSuiteContext f, String json) async {
   Compilation suite = new Suite.fromJsonMap(Uri.base, JSON.decode(json));
+  print("Running ${suite.name}");
   SuiteContext context = await f(suite);
   return context.run(suite);
 }

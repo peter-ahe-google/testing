@@ -35,6 +35,12 @@ import 'test_root.dart' show
     DartCombined,
     TestRoot;
 
+import 'zone_helper.dart' show
+    runGuarded;
+
+import 'log.dart' show
+    logTestComplete;
+
 Stream<TestDescription> listRoots(TestRoot root) async* {
   for (DartCombined suite in root.dartCombined) {
     await for (TestDescription description in
@@ -206,10 +212,21 @@ Future<Null> analyzeUris(
 
 Future<Null> runTests(Map<String, Function> tests) async {
   final ReceivePort port = new ReceivePort();
+  int completed = 0;
   for (String name in tests.keys) {
-    print("Running test $name");
-    await tests[name]();
+    StringBuffer sb = new StringBuffer();
+    try {
+      await runGuarded(() {
+        print("Running test $name");
+        return tests[name]();
+      }, printLineOnStdout: sb.writeln);
+    } catch (e) {
+      print(sb);
+      rethrow;
+    }
+    logTestComplete(++completed, 0, tests.length);
   }
+  print("");
   port.close();
 }
 

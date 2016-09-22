@@ -59,7 +59,6 @@ Future runGuarded(
   }).asFuture();
 
   Isolate.current.addErrorListener(errorPort.sendPort);
-  Isolate.current.setErrorsFatal(false);
   return acknowledgeControlMessages(Isolate.current).then((_) {
     runZoned(
         () => new Future(f).then(completer.complete),
@@ -69,7 +68,8 @@ Future runGuarded(
     return completer.future.whenComplete(() {
       errorPort.close();
       Isolate.current.removeErrorListener(errorPort.sendPort);
-      return errorFuture;
+      return acknowledgeControlMessages(Isolate.current)
+          .then((_) => errorFuture);
     });
   });
 }
