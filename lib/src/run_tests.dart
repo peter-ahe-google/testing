@@ -9,6 +9,7 @@ import 'dart:async' show
     Future;
 
 import 'dart:convert' show
+    JSON,
     LineSplitter,
     UTF8;
 
@@ -30,6 +31,7 @@ import '../testing.dart' show
     startDart;
 
 import 'test_root.dart' show
+    Compilation,
     DartCombined,
     TestRoot;
 
@@ -60,22 +62,33 @@ main(List<String> arguments) async {
       testRoot.packages, urisToAnalyze, testRoot.excludedFromAnalysis);
   StringBuffer sb = new StringBuffer();
   sb.writeln("library testing.combined;\n");
+  sb.writeln("import 'dart:async' show Future;\n");
   sb.writeln("import 'dart:io' show Directory;\n");
   sb.writeln("import 'package:testing/src/run_tests.dart' show runTests;\n");
+  sb.writeln("import 'package:testing/src/compilation_runner.dart' show");
+  sb.writeln("    runCompilationSuiteHelper;\n");
   for (TestDescription description in descriptions) {
     String shortName = description.shortName.replaceAll("/", "__");
     sb.writeln(
-        "import '${description.uri.path}' as $shortName "
+        "import '${description.uri}' as $shortName "
         "show main;");
   }
-  sb.writeln("\nvoid main() {");
-  sb.writeln("  runTests(<String, Function> {");
+  for (Compilation suite in testRoot.compilation) {
+    sb.writeln("import '${suite.source}' as ${suite.name};");
+  }
+  sb.writeln("\nFuture<Null> main() async {");
+  sb.writeln("  await runTests(<String, Function> {");
   for (TestDescription description in descriptions) {
     String shortName = description.shortName.replaceAll("/", "__");
     sb.writeln(
         '    "$shortName": $shortName.main,');
   }
   sb.writeln("  });");
+  for (Compilation suite in testRoot.compilation) {
+    sb.writeln("  await runCompilationSuiteHelper(");
+    sb.writeln("      ${suite.name}.createSuiteContext,");
+    sb.writeln("      r'${JSON.encode(suite)}');");
+  }
   sb.write("}");
 
   Stopwatch sw = new Stopwatch()..start();

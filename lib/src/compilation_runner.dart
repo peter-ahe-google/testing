@@ -8,11 +8,15 @@ import 'dart:async' show
     Future,
     Stream;
 
+import 'dart:convert' show
+    JSON;
+
 import 'dart:io' show
     exitCode;
 
 import 'test_root.dart' show
-    Compilation;
+    Compilation,
+    Suite;
 
 import '../testing.dart' show
     TestDescription,
@@ -22,6 +26,9 @@ import 'test_dart/status_file_parser.dart' show
     Expectation,
     ReadTestExpectations,
     TestExpectations;
+
+
+typedef Future<SuiteContext> CreateSuiteContext(Compilation);
 
 abstract class SuiteContext {
   const SuiteContext();
@@ -77,7 +84,6 @@ Future<Null> runCompilationSuite(
       await listCompilationTests(suite).toList();
   descriptions.sort();
   Map<TestDescription, Result> unexpectedResults = <TestDescription, Result>{};
-  Uri statusFileDir = suite.statusFile.resolve(".");
   for (TestDescription description in descriptions) {
     Set<Expectation> expectedOutcomes =
         expectations.expectations(description.shortName);
@@ -102,4 +108,12 @@ Future<Null> runCompilationSuite(
     print("FAILED: ${description.shortName}");
     print(result.error);
   });
+}
+
+/// This is called from generated code.
+Future<Null> runCompilationSuiteHelper(
+    CreateSuiteContext f, String json) async {
+  Compilation suite = new Suite.fromJsonMap(Uri.base, JSON.decode(json));
+  SuiteContext context = await f(suite);
+  return runCompilationSuite(suite, context);
 }

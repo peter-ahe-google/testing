@@ -53,7 +53,12 @@ class TestRoot {
 
   Iterable<DartCombined> get dartCombined {
     return new List<DartCombined>.from(
-        suites.where((Suite suite) => suite.kind == "Dart (combined)"));
+        suites.where((Suite suite) => suite is DartCombined));
+  }
+
+  Iterable<Compilation> get compilation {
+    return new List<Compilation>.from(
+        suites.where((Suite suite) => suite is Compilation));
   }
 
   String toString() {
@@ -155,20 +160,42 @@ class DartCombined extends Suite {
 }
 
 class Compilation extends Suite {
-  final Uri uri = Uri.base.resolve("test/golden/");
+  final Uri source;
 
-  final Uri statusFile = Uri.base.resolve("test/reify.status");
+  final Uri uri;
 
-  final List<RegExp> pattern = <RegExp>[new RegExp(r"\.dart$")];
+  final Uri statusFile;
 
-  final List<RegExp> exclude = <RegExp>[];
+  final List<RegExp> pattern;
 
-  Compilation(String name, String kind)
+  final List<RegExp> exclude;
+
+  Compilation(String name, String kind, this.source, this.uri, this.statusFile,
+      this.pattern, this.exclude)
       : super(name, kind);
 
   factory Compilation.fromJsonMap(
       Uri base, Map json, String name, String kind) {
-    // TODO(ahe): Initialize above field with values from [json].
-    return new Compilation(name, kind);
+    Uri source = base.resolve(json["source"]);
+    Uri uri = base.resolve(json["path"]);
+    Uri statusFile = base.resolve(json["status"]);
+    List<RegExp> pattern = new List<RegExp>.from(
+        json["pattern"].map((String p) => new RegExp(p)));
+    List<RegExp> exclude = new List<RegExp>.from(
+        json["exclude"].map((String p) => new RegExp(p)));
+    return new Compilation(
+        name, kind, source, uri, statusFile, pattern, exclude);
+  }
+
+  Map toJson() {
+    return {
+      "name": name,
+      "kind": kind,
+      "source": "$source",
+      "path": "$uri",
+      "status": "$statusFile",
+      "pattern": []..addAll(pattern.map((RegExp r) => r.pattern)),
+      "exclude": []..addAll(exclude.map((RegExp r) => r.pattern)),
+    };
   }
 }
