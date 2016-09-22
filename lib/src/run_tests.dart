@@ -66,7 +66,7 @@ main(List<String> arguments) async {
   sb.writeln("import 'dart:io' show Directory;\n");
   sb.writeln("import 'package:testing/src/run_tests.dart' show runTests;\n");
   sb.writeln("import 'package:testing/src/compilation_runner.dart' show");
-  sb.writeln("    runCompilationSuiteHelper;\n");
+  sb.writeln("    runCompilation;\n");
   for (TestDescription description in descriptions) {
     String shortName = description.shortName.replaceAll("/", "__");
     sb.writeln(
@@ -85,7 +85,7 @@ main(List<String> arguments) async {
   }
   sb.writeln("  });");
   for (Compilation suite in testRoot.compilation) {
-    sb.writeln("  await runCompilationSuiteHelper(");
+    sb.writeln("  await runCompilation(");
     sb.writeln("      ${suite.name}.createSuiteContext,");
     sb.writeln("      r'${JSON.encode(suite)}');");
   }

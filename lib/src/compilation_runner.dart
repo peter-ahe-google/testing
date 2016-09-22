@@ -34,6 +34,42 @@ abstract class SuiteContext {
   const SuiteContext();
 
   List<Step> get steps;
+
+  Future<Null> run(Compilation suite) async {
+    TestExpectations expectations = await ReadTestExpectations(
+        <String>[suite.statusFile.toFilePath()], {});
+    List<TestDescription> descriptions =
+        await listCompilationTests(suite).toList();
+    descriptions.sort();
+    Map<TestDescription, Result> unexpectedResults =
+        <TestDescription, Result>{};
+    for (TestDescription description in descriptions) {
+      Set<Expectation> expectedOutcomes =
+          expectations.expectations(description.shortName);
+      Result result;
+      // The input of the first step is [description]. The input to step n+1 is
+      // the output of step n.
+      dynamic input = description;
+      for (Step step in steps) {
+        print("Running ${step.name}.");
+        result = await step.run(input, this);
+        if (result.outcome == Expectation.PASS) {
+          input = result.output;
+        } else {
+          if (!expectedOutcomes.contains(result.outcome)) {
+            unexpectedResults[description] = result;
+          }
+          break;
+        }
+      }
+    }
+
+    unexpectedResults.forEach((TestDescription description, Result result) {
+      exitCode = 1;
+      print("FAILED: ${description.shortName}");
+      print(result.error);
+    });
+  }
 }
 
 abstract class Step<I, O, C extends SuiteContext> {
@@ -76,44 +112,9 @@ Stream<TestDescription> listCompilationTests(Compilation compilation) async* {
   }
 }
 
-Future<Null> runCompilationSuite(
-    Compilation suite, SuiteContext context) async {
-  TestExpectations expectations = await ReadTestExpectations(
-      <String>[suite.statusFile.toFilePath()], {});
-  List<TestDescription> descriptions =
-      await listCompilationTests(suite).toList();
-  descriptions.sort();
-  Map<TestDescription, Result> unexpectedResults = <TestDescription, Result>{};
-  for (TestDescription description in descriptions) {
-    Set<Expectation> expectedOutcomes =
-        expectations.expectations(description.shortName);
-    Result result;
-    var input = description;
-    for (Step step in context.steps) {
-      print("Running ${step.name}.");
-      result = await step.run(input, context);
-      if (result.outcome == Expectation.PASS) {
-        input = result.output;
-      } else {
-        if (!expectedOutcomes.contains(result.outcome)) {
-          unexpectedResults[description] = result;
-        }
-        break;
-      }
-    }
-  }
-
-  unexpectedResults.forEach((TestDescription description, Result result) {
-    exitCode = 1;
-    print("FAILED: ${description.shortName}");
-    print(result.error);
-  });
-}
-
 /// This is called from generated code.
-Future<Null> runCompilationSuiteHelper(
-    CreateSuiteContext f, String json) async {
+Future<Null> runCompilation(CreateSuiteContext f, String json) async {
   Compilation suite = new Suite.fromJsonMap(Uri.base, JSON.decode(json));
   SuiteContext context = await f(suite);
-  return runCompilationSuite(suite, context);
+  return context.run(suite);
 }
