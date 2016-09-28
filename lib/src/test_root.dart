@@ -69,6 +69,8 @@ class TestRoot {
     String json = await new File.fromUri(uri).readAsString();
     Map data = JSON.decode(json);
 
+    addDefaults(data);
+
     Uri packages = uri.resolve(data["packages"]);
 
     List<Suite> suites = new List<Suite>.from(
@@ -81,6 +83,14 @@ class TestRoot {
         data["analyze"]["exclude"].map((String p) => new RegExp(p)));
 
     return new TestRoot(packages, suites, urisToAnalyze, excludedFromAnalysis);
+  }
+
+  static void addDefaults(Map data) {
+    data.putIfAbsent("packages", () => ".packages");
+    data.putIfAbsent("suites", () => []);
+    Map analyze = data.putIfAbsent("analyze", () => {});
+    analyze.putIfAbsent("uris", () => []);
+    analyze.putIfAbsent("exclude", () => []);
   }
 }
 

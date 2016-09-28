@@ -20,6 +20,9 @@ import 'dart:io' show
     stderr,
     stdout;
 
+import 'dart:io' as io show
+    exitCode;
+
 import 'dart:isolate' show
     ReceivePort;
 
@@ -77,7 +80,15 @@ Stream<TestDescription> listRoots(TestRoot root) async* {
 
 main(List<String> arguments) async {
   final ReceivePort port = new ReceivePort();
+  fail(String message) {
+    print(message);
+    io.exitCode = 1;
+    port.close();
+  }
   CommandLine cl = CommandLine.parse(arguments);
+  if (cl.arguments.length != 1) {
+    return fail("Usage: run_tests.dart configuration_file");
+  }
   final bool isVerbose =
       cl.options.contains("--verbose") || cl.options.contains("-v");
   if (!isVerbose) {
@@ -94,6 +105,7 @@ main(List<String> arguments) async {
   await analyzeUris(testRoot.packages, urisToAnalyze,
       testRoot.excludedFromAnalysis, isVerbose: isVerbose);
   StringBuffer sb = new StringBuffer();
+  bool hasTests = false;
   sb.writeln("library testing.combined;\n");
   sb.writeln("import 'dart:async' show Future;\n");
   sb.writeln("import 'dart:io' show Directory;\n");
@@ -101,12 +113,14 @@ main(List<String> arguments) async {
   sb.writeln("import 'package:testing/src/compilation_runner.dart' show");
   sb.writeln("    runCompilation;\n");
   for (TestDescription description in descriptions) {
+    hasTests = true;
     String shortName = description.shortName.replaceAll("/", "__");
     sb.writeln(
         "import '${description.uri}' as $shortName "
         "show main;");
   }
   for (Compilation suite in testRoot.compilation) {
+    hasTests = true;
     sb.writeln("import '${suite.source}' as ${suite.name};");
   }
   sb.writeln("\nFuture<Null> main() async {");
@@ -124,6 +138,10 @@ main(List<String> arguments) async {
   }
   sb.write("}");
 
+  if (!hasTests) {
+    return fail("No tests configured.");
+  }
+
   Stopwatch sw = new Stopwatch()..start();
   Directory tmp = await Directory.systemTemp.createTemp();
   try {
@@ -137,7 +155,9 @@ main(List<String> arguments) async {
     }
     Process process = await startDart(
         generated.uri, null,
-        <String>["-Dverbose=$isVerbose"]..addAll(dartArguments));
+        <String>[
+            "-c", "-Dverbose=$isVerbose",
+            "--packages=${testRoot.packages.toFilePath()}"]);
     process.stdin.close();
     Future stdoutFuture =
         process.stdout.listen((data) => stdout.add(data)).asFuture();
@@ -206,6 +226,7 @@ Stream<AnalyzerDiagnostic> parseAnalyzerOutput(
 /// Run dartanalyzer on all tests in [uris].
 Future<Null> analyzeUris(Uri packages, List<Uri> uris, List<RegExp> exclude,
     {bool isVerbose: false}) async {
+  if (uris.isEmpty) return;
   const String analyzerPath = "bin/dartanalyzer";
   Uri analyzer = dartSdk.resolve(analyzerPath);
   if (!await new File.fromUri(analyzer).exists()) {

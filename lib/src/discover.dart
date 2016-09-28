@@ -68,7 +68,7 @@ Stream<TestDescription> listTests(List<Uri> testRoots, {Pattern pattern}) {
 Uri computePackageConfig() {
   String path = Platform.packageConfig;
   if (path != null) return Uri.base.resolve(path);
-  return Platform.script.resolve(".packages");
+  return Uri.base.resolve(".packages");
 }
 
 Uri computeDartSdk() {
