@@ -82,6 +82,9 @@ abstract class SuiteContext {
       exitCode = 1;
       print("FAILED: ${description.shortName}");
       print(result.error);
+      if (result.trace != null) {
+        print(result.trace);
+      }
     });
   }
 }
