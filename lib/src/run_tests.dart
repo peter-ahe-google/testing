@@ -24,6 +24,7 @@ import 'dart:io' as io show
     exitCode;
 
 import 'dart:isolate' show
+    Isolate,
     ReceivePort;
 
 import '../testing.dart' show
@@ -86,16 +87,26 @@ main(List<String> arguments) async {
     port.close();
   }
   CommandLine cl = CommandLine.parse(arguments);
-  if (cl.arguments.length != 1) {
-    return fail("Usage: run_tests.dart configuration_file");
-  }
   final bool isVerbose =
       cl.options.contains("--verbose") || cl.options.contains("-v");
+  if (cl.arguments.length > 1) {
+    return fail("Usage: run_tests.dart [configuration_file]");
+  }
+  String configurationPath = cl.arguments.length == 0
+      ? "testing.json" : cl.arguments.first;
+  if (isVerbose) {
+    print("Reading configuration file '$configurationPath'.");
+  }
+  Uri configuration =
+      await Isolate.resolvePackageUri(Uri.base.resolve(configurationPath));
+  if (configuration == null ||
+      !await new File.fromUri(configuration).exists()) {
+    return fail("Couldn't locate: '$configurationPath'.");
+  }
   if (!isVerbose) {
     print("Use --verbose to display more details.");
   }
-  TestRoot testRoot =
-      await TestRoot.fromUri(Uri.base.resolve(cl.arguments.single));
+  TestRoot testRoot = await TestRoot.fromUri(configuration);
   List<TestDescription> descriptions = await listRoots(testRoot).toList();
   descriptions.sort();
   List<Uri> urisToAnalyze = <Uri>[]

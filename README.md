@@ -13,6 +13,12 @@ This package:
 
   * Ensures all tests and implementation is free from warnings (using dartanalyzer).
 
+## Getting Started
+
+  1. Create a [configuration file](#Configuration) named `testing.json`.
+
+  2. Run `bin/run_tests.dart`.
+
 ## Configuration
 
 The test runner is configured using a JSON file. A minimal configuration file is:
