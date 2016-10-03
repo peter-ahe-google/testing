@@ -2,7 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE.md file.
 
-library testing.compilation_runner;
+library testing.chain;
 
 import 'dart:async' show
     Future,
@@ -17,8 +17,7 @@ import 'dart:io' show
     FileSystemEntity,
     exitCode;
 
-import 'test_root.dart' show
-    Compilation,
+import 'suite.dart' show
     Suite;
 
 import '../testing.dart' show
@@ -34,14 +33,56 @@ import 'zone_helper.dart' show
 
 import 'log.dart';
 
-typedef Future<SuiteContext> CreateSuiteContext(Compilation);
+typedef Future<ChainContext> CreateContext(Chain);
 
-abstract class SuiteContext {
-  const SuiteContext();
+/// A test suite for tool chains, for example, a compiler.
+class Chain extends Suite {
+  final Uri source;
+
+  final Uri uri;
+
+  final Uri statusFile;
+
+  final List<RegExp> pattern;
+
+  final List<RegExp> exclude;
+
+  Chain(String name, String kind, this.source, this.uri, this.statusFile,
+      this.pattern, this.exclude)
+      : super(name, kind);
+
+  factory Chain.fromJsonMap(
+      Uri base, Map json, String name, String kind) {
+    Uri source = base.resolve(json["source"]);
+    Uri uri = base.resolve(json["path"]);
+    Uri statusFile = base.resolve(json["status"]);
+    List<RegExp> pattern = new List<RegExp>.from(
+        json["pattern"].map((String p) => new RegExp(p)));
+    List<RegExp> exclude = new List<RegExp>.from(
+        json["exclude"].map((String p) => new RegExp(p)));
+    return new Chain(
+        name, kind, source, uri, statusFile, pattern, exclude);
+  }
+
+  Map toJson() {
+    return {
+      "name": name,
+      "kind": kind,
+      "source": "$source",
+      "path": "$uri",
+      "status": "$statusFile",
+      "pattern": []..addAll(pattern.map((RegExp r) => r.pattern)),
+      "exclude": []..addAll(exclude.map((RegExp r) => r.pattern)),
+    };
+  }
+}
+
+abstract class ChainContext {
+  const ChainContext();
 
   List<Step> get steps;
 
-  Future<Null> run(Compilation suite) async {
+  Future<Null> run(Chain suite) async {
     TestExpectations expectations = await ReadTestExpectations(
         <String>[suite.statusFile.toFilePath()], {});
     List<TestDescription> descriptions = await list(suite).toList();
@@ -89,7 +130,7 @@ abstract class SuiteContext {
     });
   }
 
-  Stream<TestDescription> list(Compilation suite) async* {
+  Stream<TestDescription> list(Chain suite) async* {
     Directory testRoot = new Directory.fromUri(suite.uri);
     if (await testRoot.exists()) {
       Stream<FileSystemEntity> files =
@@ -108,7 +149,7 @@ abstract class SuiteContext {
   }
 }
 
-abstract class Step<I, O, C extends SuiteContext> {
+abstract class Step<I, O, C extends ChainContext> {
   const Step();
 
   String get name;
@@ -138,9 +179,9 @@ class Result<O> {
 }
 
 /// This is called from generated code.
-Future<Null> runCompilation(CreateSuiteContext f, String json) async {
-  Compilation suite = new Suite.fromJsonMap(Uri.base, JSON.decode(json));
+Future<Null> runChain(CreateContext f, String json) async {
+  Chain suite = new Suite.fromJsonMap(Uri.base, JSON.decode(json));
   print("Running ${suite.name}");
-  SuiteContext context = await f(suite);
+  ChainContext context = await f(suite);
   return context.run(suite);
 }

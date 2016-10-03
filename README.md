@@ -110,10 +110,10 @@ The properties of a `Chain` suite are:
 The `source` property of a `Chain` suite is a Dart program that must provide a top-level method with this name and signature:
 
 ```dart
-Future<SuiteContext> createSuiteContext(Chain suite) async { ... }
+Future<ChainContext> createContext(Chain suite) async { ... }
 ```
 
-A suite is expected to implement a subclass of `SuiteContext` which defines the steps that make up the chain and return it from `createSuiteContext`.
+A suite is expected to implement a subclass of `ChainContext` which defines the steps that make up the chain and return it from `createContext`.
 
 A step is a subclass of `Step`. The input to the first step is a `TestDescription`. The input to step n+1 is the output of step n.
 
@@ -124,16 +124,16 @@ import 'dart:convert' show UTF8;
 import 'dart:io' show Process;
 import 'testing.dart';
 
-Future<SuiteContext> createSuiteContext(Chain suite) async {
+Future<ChainContext> createContext(Chain suite) async {
   return new VmContext();
 }
 
-class VmContext extends SuiteContext {
-  final List<Step> steps = const <Step>[const DartVm()];
+class VmContext extends ChainContext {
+  final List<Step> steps = const <Step>[const DartVmStep()];
 }
 
-class DartVm extends Step<TestDescription, int, VmContext> {
-  const DartVm();
+class DartVmStep extends Step<TestDescription, int, VmContext> {
+  const DartVmStep();
 
   String get name => "Dart VM";
 

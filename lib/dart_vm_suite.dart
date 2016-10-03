@@ -8,16 +8,16 @@ import 'dart:convert' show UTF8;
 import 'dart:io' show Process;
 import 'testing.dart';
 
-Future<SuiteContext> createSuiteContext(Chain suite) async {
+Future<ChainContext> createContext(Chain suite) async {
   return new VmContext();
 }
 
-class VmContext extends SuiteContext {
-  final List<Step> steps = const <Step>[const DartVm()];
+class VmContext extends ChainContext {
+  final List<Step> steps = const <Step>[const DartVmStep()];
 }
 
-class DartVm extends Step<TestDescription, int, VmContext> {
-  const DartVm();
+class DartVmStep extends Step<TestDescription, int, VmContext> {
+  const DartVmStep();
 
   String get name => "Dart VM";
 

@@ -28,15 +28,17 @@ import 'dart:isolate' show
     ReceivePort;
 
 import '../testing.dart' show
+    Chain,
     TestDescription,
     dartArguments,
     dartSdk,
     listTests,
     startDart;
 
+import 'suite.dart' show
+    Dart;
+
 import 'test_root.dart' show
-    Compilation,
-    DartCombined,
     TestRoot;
 
 import 'zone_helper.dart' show
@@ -67,7 +69,7 @@ class CommandLine {
 }
 
 Stream<TestDescription> listRoots(TestRoot root) async* {
-  for (DartCombined suite in root.dartCombined) {
+  for (Dart suite in root.dartSuites) {
     await for (TestDescription description in
                    listTests(<Uri>[suite.uri], pattern: "")) {
       String path = description.file.uri.path;
@@ -117,12 +119,12 @@ main(List<String> arguments) async {
       testRoot.excludedFromAnalysis, isVerbose: isVerbose);
   StringBuffer sb = new StringBuffer();
   bool hasTests = false;
-  sb.writeln("library testing.combined;\n");
+  sb.writeln("library testing.generated;\n");
   sb.writeln("import 'dart:async' show Future;\n");
   sb.writeln("import 'dart:io' show Directory;\n");
   sb.writeln("import 'package:testing/src/run_tests.dart' show runTests;\n");
-  sb.writeln("import 'package:testing/src/compilation_runner.dart' show");
-  sb.writeln("    runCompilation;\n");
+  sb.writeln("import 'package:testing/src/chain.dart' show");
+  sb.writeln("    runChain;\n");
   for (TestDescription description in descriptions) {
     hasTests = true;
     String shortName = description.shortName.replaceAll("/", "__");
@@ -130,7 +132,7 @@ main(List<String> arguments) async {
         "import '${description.uri}' as $shortName "
         "show main;");
   }
-  for (Compilation suite in testRoot.compilation) {
+  for (Chain suite in testRoot.toolChains) {
     hasTests = true;
     sb.writeln("import '${suite.source}' as ${suite.name};");
   }
@@ -142,9 +144,9 @@ main(List<String> arguments) async {
         '    "$shortName": $shortName.main,');
   }
   sb.writeln("  });");
-  for (Compilation suite in testRoot.compilation) {
-    sb.writeln("  await runCompilation(");
-    sb.writeln("      ${suite.name}.createSuiteContext,");
+  for (Chain suite in testRoot.toolChains) {
+    sb.writeln("  await runChain(");
+    sb.writeln("      ${suite.name}.createContext,");
     sb.writeln("      r'${JSON.encode(suite)}');");
   }
   sb.write("}");

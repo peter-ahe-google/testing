@@ -11,10 +11,8 @@ export 'src/discover.dart';
 
 export 'src/test_description.dart';
 
-export 'src/test_root.dart' show
-    Chain;
-
-export 'src/compilation_runner.dart' show
+export 'src/chain.dart' show
+    Chain,
+    ChainContext,
     Result,
-    Step,
-    SuiteContext;
+    Step;
