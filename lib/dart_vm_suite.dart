@@ -4,8 +4,6 @@
 
 library testing.dart_vm_suite;
 
-import 'dart:convert' show UTF8;
-import 'dart:io' show Process;
 import 'testing.dart';
 
 Future<ChainContext> createContext(Chain suite) async {
@@ -22,20 +20,7 @@ class DartVmStep extends Step<TestDescription, int, VmContext> {
   String get name => "Dart VM";
 
   Future<Result<int>> run(TestDescription input, VmContext context) async {
-    Process process = await Process.start("dart", [input.file.path]);
-    process.stdin.close();
-    Future<List<String>> stdoutFuture =
-        process.stdout.transform(UTF8.decoder).toList();
-    Future<List<String>> stderrFuture =
-        process.stderr.transform(UTF8.decoder).toList();
-    int exitCode = await process.exitCode;
-    StringBuffer sb = new StringBuffer();
-    sb.writeAll(await stdoutFuture);
-    sb.writeAll(await stderrFuture);
-    if (exitCode == 0) {
-      return new Result<int>.pass(exitCode);
-    } else {
-      return new Result<int>.fail(exitCode, "$sb");
-    }
+    StdioProcess process = await StdioProcess.run("dart", [input.file.path]);
+    return process.toResult();
   }
 }
