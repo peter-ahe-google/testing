@@ -14,5 +14,11 @@
       "exclude": [
       ]
     }
-  ]
+  ],
+  "analyze": {
+    "uris": [
+      "lib/",
+      "bin/run_tests.dart"
+    ]
+  }
 }

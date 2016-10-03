@@ -30,7 +30,6 @@ import 'dart:isolate' show
 import '../testing.dart' show
     Chain,
     TestDescription,
-    dartArguments,
     dartSdk,
     listTests,
     startDart;
