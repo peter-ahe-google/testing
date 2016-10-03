@@ -161,7 +161,7 @@ The `Dart` suite is for running unit tests written in Dart. Each test is a Dart 
 
 The suite generates a new Dart program which combines all the tests included in the suite, so they can all be run (in sequence) in the same process. Such tests must be co-operative and must clean up after themselves.
 
-You can use any test-framework, for example, `package:test` in these individual programs, as long as the frameworks are well-behaved with respect to static state.
+You can use any test-framework, for example, `package:test` in these individual programs, as long as the frameworks are well-behaved with respect to global state, see [below](#Well-Behaved-Tests).
 
 Here is a complete example of a `Dart` suite:
 
@@ -194,6 +194,22 @@ The properties of a `Dart` suite are:
 *pattern*: a list of regular expressions that match file names that are tests.
 
 *exclude*: a list of regular expressions that exclude files from being included in this suite.
+
+#### Well Behaved Tests
+
+The `Dart` suite makes certain assumptions about the tests it runs.
+
+ * All tests use the same packages configuration file.
+
+ * An asynchronous test returns a `Future` from its `main`.
+
+ * Tests manages global state.
+
+All tests are imported into the same program as individual libraries, which is why they all must use the same `.packages` file. The tests aren't concatenated, so they have the lexical scope you'd normally expect from a Dart library.
+
+Tests are run in order. In particular, the test framework will not start the next test until any future returned from the current test's `main` method complete. In addition, asynchronous tests are expected to have finished all asynchronous operations when the future returned from their `main` method completes (with or without an error).
+
+Tests are expected to manage global state (aka static state). Simply put: clean up after yourself. But if it's simpler to ensure global state is reset before running a test and not clean up afterwards, that's also fine as long as all tests agree on how to manage their shared global state.
 
 ### Configuring Analyzed Programs
 
