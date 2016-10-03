@@ -13,6 +13,10 @@ This package:
 
   * Ensures all tests and implementations are free of warnings (using dartanalyzer).
 
+This package is not:
+
+  * A replacement for `package:test`. This package can be used to run `package:test` tests, and `package:test` can be viewed as the batteries that aren't included in this package.
+
 ## Motivation
 
 We want to test tool chains, for example, a Dart compiler. Depending on the tool chain, it may comprise several individual steps. For example, to test dart2js, you have these steps:
