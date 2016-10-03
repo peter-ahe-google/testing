@@ -13,6 +13,9 @@ import 'dart:convert' show
 import 'dart:io' show
     File;
 
+import 'dart:isolate' show
+    Isolate;
+
 /// Records properties of a test root. The information is read from a JSON file.
 ///
 /// Example with comments:
@@ -79,6 +82,14 @@ class TestRoot {
     List<Uri> urisToAnalyze = new List<Uri>.from(data["analyze"]["uris"]
         .map((String relative) => uri.resolve(relative)));
 
+    // Also analyze the sources of any Compilation suites.
+    urisToAnalyze.addAll(suites
+        .where((Suite suite) => suite is Compilation)
+        .map((Compilation suite) => suite.source));
+
+    for (int i = 0; i < urisToAnalyze.length; i++) {
+      urisToAnalyze[i] = await Isolate.resolvePackageUri(urisToAnalyze[i]);
+    }
     List<RegExp> excludedFromAnalysis = new List<RegExp>.from(
         data["analyze"]["exclude"].map((String p) => new RegExp(p)));
 
@@ -106,10 +117,12 @@ abstract class Suite {
     String kind = json["kind"].toLowerCase();
     String name = json["name"];
     switch (kind) {
-      case "dart (combined)":
+      case "dart":
+      case "dart (combined)": // TODO(ahe): Remove this case.
         return new DartCombined.fromJsonMap(base, json, name, kind);
 
-      case "compilation":
+      case "chain":
+      case "compilation": // TODO(ahe): Remove this case.
         return new Compilation.fromJsonMap(base, json, name, kind);
 
       default:
@@ -169,7 +182,22 @@ class DartCombined extends Suite {
   String toString() => "DartCombined($name, $uri, $pattern, $exclude)";
 }
 
-class Compilation extends Suite {
+abstract class Chain implements Suite {
+  Uri get source;
+
+  Uri get uri;
+
+  Uri get statusFile;
+
+  List<RegExp> get pattern;
+
+  List<RegExp> get exclude;
+
+  Map toJson();
+}
+
+// TODO(ahe): Rename [Compilation] to [Chain].
+class Compilation extends Suite implements Chain {
   final Uri source;
 
   final Uri uri;
