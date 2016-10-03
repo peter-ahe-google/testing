@@ -11,9 +11,8 @@ import 'dart:io' show
 class TestDescription implements Comparable<TestDescription> {
   final Uri root;
   final File file;
-  final Uri output;
 
-  TestDescription(this.root, this.file, {this.output});
+  TestDescription(this.root, this.file);
 
   Uri get uri => file.uri;
 

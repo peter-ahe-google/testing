@@ -12,6 +12,9 @@ import 'dart:convert' show
     JSON;
 
 import 'dart:io' show
+    Directory,
+    File,
+    FileSystemEntity,
     exitCode;
 
 import 'test_root.dart' show
@@ -19,8 +22,7 @@ import 'test_root.dart' show
     Suite;
 
 import '../testing.dart' show
-    TestDescription,
-    listTests;
+    TestDescription;
 
 import 'test_dart/status_file_parser.dart' show
     Expectation,
@@ -42,8 +44,7 @@ abstract class SuiteContext {
   Future<Null> run(Compilation suite) async {
     TestExpectations expectations = await ReadTestExpectations(
         <String>[suite.statusFile.toFilePath()], {});
-    List<TestDescription> descriptions =
-        await listCompilationTests(suite).toList();
+    List<TestDescription> descriptions = await list(suite).toList();
     descriptions.sort();
     Map<TestDescription, Result> unexpectedResults =
         <TestDescription, Result>{};
@@ -87,6 +88,24 @@ abstract class SuiteContext {
       }
     });
   }
+
+  Stream<TestDescription> list(Compilation suite) async* {
+    Directory testRoot = new Directory.fromUri(suite.uri);
+    if (await testRoot.exists()) {
+      Stream<FileSystemEntity> files =
+          testRoot.list(recursive: true, followLinks: false);
+      await for (FileSystemEntity entity in files) {
+        if (entity is! File) continue;
+        String path = entity.uri.path;
+        if (suite.exclude.any((RegExp r) => path.contains(r))) continue;
+        if (suite.pattern.any((RegExp r) => path.contains(r))) {
+          yield new TestDescription(suite.uri, entity);
+        }
+      }
+    } else {
+      throw "${suite.uri} isn't a directory";
+    }
+  }
 }
 
 abstract class Step<I, O, C extends SuiteContext> {
@@ -116,17 +135,6 @@ class Result<O> {
 
   Result.fail(O output, [error, StackTrace trace])
       : this(output, Expectation.FAIL, error, trace);
-}
-
-Stream<TestDescription> listCompilationTests(Compilation compilation) async* {
-  await for (TestDescription description in
-                 listTests(<Uri>[compilation.uri], pattern: "")) {
-    String path = description.file.uri.path;
-    if (compilation.exclude.any((RegExp r) => path.contains(r))) continue;
-    if (compilation.pattern.any((RegExp r) => path.contains(r))) {
-      yield description;
-    }
-  }
 }
 
 /// This is called from generated code.
