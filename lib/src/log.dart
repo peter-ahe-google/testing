@@ -4,6 +4,12 @@
 
 library testing.log;
 
+import 'chain.dart' show
+    Result;
+
+import 'test_description.dart' show
+    TestDescription;
+
 /// ANSI escape code for moving cursor one line up.
 /// See [CSI codes](https://en.wikipedia.org/wiki/ANSI_escape_code#CSI_codes).
 const String cursorUp = "\u001b[1A";
@@ -30,6 +36,18 @@ void logTestComplete(int completed, int failed, int total, {String suffix}) {
 void logMessage(Object message) {
   if (isVerbose) {
     print("$message");
+  }
+}
+
+void logUnexpectedResult(TestDescription description, Result result) {
+  print("${eraseLine}UNEXPECTED: ${description.shortName}");
+  String log = result.log;
+  if (log.isNotEmpty) {
+    print(log);
+  }
+  print(result.error);
+  if (result.trace != null) {
+    print(result.trace);
   }
 }
 

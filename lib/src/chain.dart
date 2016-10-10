@@ -98,6 +98,7 @@ abstract class ChainContext {
       // the output of step n.
       dynamic input = description;
       StringBuffer sb = new StringBuffer();
+      bool hasUnexpectedResult = false;
       for (Step step in steps) {
         result = await runGuarded(() {
           print("Running ${step.name}.");
@@ -107,26 +108,24 @@ abstract class ChainContext {
           input = result.output;
         } else {
           if (!expectedOutcomes.contains(result.outcome)) {
-            if (!isVerbose) {
-              print(sb);
-            }
+            hasUnexpectedResult = true;
+            result.addLog("$sb");
             unexpectedResults[description] = result;
+            logUnexpectedResult(description, result);
           }
           break;
         }
       }
-      logMessage(sb);
+      if (!hasUnexpectedResult) {
+        logMessage(sb);
+      }
       logTestComplete(++completed, unexpectedResults.length,
           descriptions.length, suffix: ": ${suite.name}");
     }
     logSuiteComplete();
     unexpectedResults.forEach((TestDescription description, Result result) {
       exitCode = 1;
-      print("FAILED: ${description.shortName}");
-      print(result.error);
-      if (result.trace != null) {
-        print(result.trace);
-      }
+      logUnexpectedResult(description, result);
     });
   }
 
@@ -166,6 +165,8 @@ class Result<O> {
 
   final StackTrace trace;
 
+  final List<String> logs = <String>[];
+
   Result(this.output, this.outcome, this.error, this.trace);
 
   Result.pass(O output)
@@ -176,6 +177,12 @@ class Result<O> {
 
   Result.fail(O output, [error, StackTrace trace])
       : this(output, Expectation.FAIL, error, trace);
+
+  String get log => logs.join();
+
+  void addLog(String log) {
+    logs.add(log);
+  }
 }
 
 /// This is called from generated code.
