@@ -107,9 +107,13 @@ abstract class ChainContext {
       StringBuffer sb = new StringBuffer();
       bool hasUnexpectedResult = false;
       for (Step step in steps) {
-        result = await runGuarded(() {
+        result = await runGuarded(() async {
           print("Running ${step.name}.");
-          return step.run(input, this);
+          try {
+            return await step.run(input, this);
+          } catch (error, trace) {
+            return step.unhandledError(error, trace);
+          }
         }, printLineOnStdout: sb.writeln);
         if (result.outcome == Expectation.PASS) {
           input = result.output;
@@ -161,6 +165,10 @@ abstract class Step<I, O, C extends ChainContext> {
   String get name;
 
   Future<Result<O>> run(I input, C context);
+
+  Result<O> unhandledError(error, StackTrace trace) {
+    return new Result<O>.crash(error, trace);
+  }
 }
 
 class Result<O> {
