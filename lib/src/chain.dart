@@ -18,9 +18,6 @@ import 'dart:io' show
     Platform,
     exitCode;
 
-import 'dart:isolate' show
-    ReceivePort;
-
 import 'suite.dart' show
     Suite;
 
@@ -38,7 +35,14 @@ import 'test_dart/status_file_parser.dart' show
 import 'zone_helper.dart' show
     runGuarded;
 
-import 'log.dart';
+import 'error_handling.dart' show
+    withErrorHandling;
+
+import 'log.dart' show
+    logMessage,
+    logSuiteComplete,
+    logTestComplete,
+    logUnexpectedResult;
 
 typedef Future<ChainContext> CreateContext(Chain);
 
@@ -201,17 +205,26 @@ class Result<O> {
 }
 
 /// This is called from generated code.
-Future<Null> runChain(CreateContext f, String json) async {
-  Chain suite = new Suite.fromJsonMap(Uri.base, JSON.decode(json));
-  print("Running ${suite.name}");
-  ChainContext context = await f(suite);
-  return context.run(suite);
+Future<Null> runChain(CreateContext f, String json) {
+  return withErrorHandling(() async {
+    Chain suite = new Suite.fromJsonMap(Uri.base, JSON.decode(json));
+    print("Running ${suite.name}");
+    ChainContext context = await f(suite);
+    return context.run(suite);
+  });
 }
 
+/// This is called from a Chain suite, and helps implement main. In most cases,
+/// main will look like this:
+///
+///     main(List<String> arguments) => runMe(arguments, createContext);
+///
+/// The optional argument [configurationPath] should be used when
+/// `testing.json` isn't located in the current working directory and is a path
+/// relative to `Platform.script`.
 Future<Null> runMe(
-    List<String> arguments, CreateContext f, [String configurationPath]) async {
-  final ReceivePort port = new ReceivePort();
-  try {
+    List<String> arguments, CreateContext f, [String configurationPath]) {
+  return withErrorHandling(() async {
     Uri configuration = configurationPath == null
         ? Uri.base.resolve("testing.json")
         : Platform.script.resolve(configurationPath);
@@ -223,7 +236,5 @@ Future<Null> runMe(
         await context.run(suite);
       }
     }
-  } finally {
-    port.close();
-  }
+  });
 }

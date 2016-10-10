@@ -24,8 +24,7 @@ import 'dart:io' as io show
     exitCode;
 
 import 'dart:isolate' show
-    Isolate,
-    ReceivePort;
+    Isolate;
 
 import '../testing.dart' show
     Chain,
@@ -33,6 +32,9 @@ import '../testing.dart' show
     dartSdk,
     listTests,
     startDart;
+
+import 'error_handling.dart' show
+    withErrorHandling;
 
 import 'suite.dart' show
     Dart;
@@ -80,12 +82,10 @@ Stream<TestDescription> listRoots(TestRoot root) async* {
   }
 }
 
-main(List<String> arguments) async {
-  final ReceivePort port = new ReceivePort();
+main(List<String> arguments) => withErrorHandling(() async {
   fail(String message) {
     print(message);
     io.exitCode = 1;
-    port.close();
   }
   CommandLine cl = CommandLine.parse(arguments);
   final bool isVerbose =
@@ -186,8 +186,7 @@ main(List<String> arguments) async {
   }
   sw.stop();
   print("Running tests took: ${sw.elapsed}.");
-  port.close();
-}
+});
 
 class AnalyzerDiagnostic {
   final String kind;
@@ -278,8 +277,8 @@ Future<Null> analyzeUris(Uri packages, List<Uri> uris, List<RegExp> exclude,
   print("Running analyzer took: ${sw.elapsed}.");
 }
 
-Future<Null> runTests(Map<String, Function> tests) async {
-  final ReceivePort port = new ReceivePort();
+Future<Null> runTests(Map<String, Function> tests) =>
+withErrorHandling(() async {
   int completed = 0;
   for (String name in tests.keys) {
     StringBuffer sb = new StringBuffer();
@@ -296,8 +295,7 @@ Future<Null> runTests(Map<String, Function> tests) async {
     logTestComplete(++completed, 0, tests.length);
   }
   logSuiteComplete();
-  port.close();
-}
+});
 
 String numberedLines(String text) {
   StringBuffer result = new StringBuffer();
