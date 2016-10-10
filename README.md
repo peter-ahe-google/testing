@@ -140,6 +140,8 @@ class DartVmStep extends Step<TestDescription, int, VmContext> {
     return process.toResult();
   }
 }
+
+main(List<String> arguments) => runMe(arguments, createContext);
 ```
 
 An example with multiple steps in the chain can be found in the Kernel package's [suite](https://github.com/dart-lang/kernel/blob/closure_conversion/test/closures/suite.dart). Notice how this suite stores an `AnalysisContext` in its `TestContext` and is this way able to reuse the same `AnalysisContext` in all tests.

@@ -15,13 +15,20 @@ import 'dart:io' show
     Directory,
     File,
     FileSystemEntity,
+    Platform,
     exitCode;
+
+import 'dart:isolate' show
+    ReceivePort;
 
 import 'suite.dart' show
     Suite;
 
 import '../testing.dart' show
     TestDescription;
+
+import 'test_root.dart' show
+    TestRoot;
 
 import 'test_dart/status_file_parser.dart' show
     Expectation,
@@ -191,4 +198,24 @@ Future<Null> runChain(CreateContext f, String json) async {
   print("Running ${suite.name}");
   ChainContext context = await f(suite);
   return context.run(suite);
+}
+
+Future<Null> runMe(
+    List<String> arguments, CreateContext f, [String configurationPath]) async {
+  final ReceivePort port = new ReceivePort();
+  try {
+    Uri configuration = configurationPath == null
+        ? Uri.base.resolve("testing.json")
+        : Platform.script.resolve(configurationPath);
+    TestRoot testRoot = await TestRoot.fromUri(configuration);
+    for (Chain suite in testRoot.toolChains) {
+      if (Platform.script == suite.source) {
+        print("Running suite ${suite.name}...");
+        ChainContext context = await f(suite);
+        await context.run(suite);
+      }
+    }
+  } finally {
+    port.close();
+  }
 }

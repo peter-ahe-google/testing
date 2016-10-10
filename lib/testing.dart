@@ -15,7 +15,8 @@ export 'src/chain.dart' show
     Chain,
     ChainContext,
     Result,
-    Step;
+    Step,
+    runMe;
 
 export 'src/stdio_process.dart' show
     StdioProcess;

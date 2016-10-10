@@ -24,3 +24,5 @@ class DartVmStep extends Step<TestDescription, int, VmContext> {
     return process.toResult();
   }
 }
+
+main(List<String> arguments) => runMe(arguments, createContext);
