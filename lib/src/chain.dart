@@ -173,6 +173,14 @@ abstract class Step<I, O, C extends ChainContext> {
   Result<O> unhandledError(error, StackTrace trace) {
     return new Result<O>.crash(error, trace);
   }
+
+  Result<O> pass(O output) => new Result<O>.pass(output);
+
+  Result<O> crash(error, StackTrace trace) => new Result<O>.crash(error, trace);
+
+  Result<O> fail(O output, [error, StackTrace trace]) {
+    return new Result<O>.fail(output, error, trace);
+  }
 }
 
 class Result<O> {
