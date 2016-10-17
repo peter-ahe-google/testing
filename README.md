@@ -186,7 +186,7 @@ The properties of a `Dart` suite are:
 
 *exclude*: a list of regular expressions that exclude files from being included in this suite.
 
-#### Well Behaved Tests
+#### Well-Behaved Tests
 
 The `Dart` suite makes certain assumptions about the tests it runs.
 
@@ -237,3 +237,28 @@ The properties of the `analyze` section are:
 *uris*: a list of URIs relative to the configuration file that should also be analyzed. For now, only file URIs are supported.
 
 *exclude*: a list of regular expression that matches file names that should be excluded from analysis. For now, the files are still analyzed but diagnostics are suppressed and ignored.
+
+## Integrating with Other Test Runners
+
+### `test.dart`
+
+To run the suite `my_suite` from `test.dart`, create a file named `mysuite_test.dart` with this content:
+
+    import 'package:async_helper/async_helper.dart' show asyncTest;
+
+    import 'package:testing/testing.dart' show run;
+
+    main(List<String> arguments) => asyncTest(run(arguments, ["my_suite"]));
+
+### `package:test`
+
+To run the suite `my_suite` from `package:test`, create a file named `mysuite_test.dart` with this content:
+
+    import 'package:test/test.dart' show Timeout, test;
+
+    import 'package:testing/testing.dart' show run;
+
+    main() {
+      test("my_suite", () => run([], ["my_suite"]),
+          timeout: new Timeout(new Duration(minutes: 5)));
+    }

@@ -5,13 +5,19 @@
 /// Helper functions for running code in a Zone.
 library testing.zone_helper;
 
-import 'dart:io' as io;
+import 'dart:async' show
+    Completer,
+    Future,
+    ZoneSpecification,
+    runZoned;
 
-import 'dart:async';
+import 'dart:isolate' show
+    Capability,
+    Isolate,
+    ReceivePort;
 
-import 'dart:isolate';
-
-const bool isVerbose = const bool.fromEnvironment("verbose");
+import 'log.dart' show
+    logUncaughtError;
 
 Future runGuarded(
     Future f(),
@@ -28,12 +34,7 @@ Future runGuarded(
   Completer completer = new Completer();
 
   handleUncaughtError(error, StackTrace stackTrace) {
-    if (isVerbose) {
-      io.stderr.writeln("$error");
-      if (stackTrace != null) {
-        io.stderr.writeln("$stackTrace");
-      }
-    }
+    logUncaughtError(error, stackTrace);
     if (!completer.isCompleted) {
       completer.completeError(error, stackTrace);
     } else if (handleLateError != null) {

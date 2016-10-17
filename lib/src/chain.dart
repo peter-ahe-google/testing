@@ -9,13 +9,13 @@ import 'dart:async' show
     Stream;
 
 import 'dart:convert' show
-    JSON;
+    JSON,
+    JsonEncoder;
 
 import 'dart:io' show
     Directory,
     File,
     FileSystemEntity,
-    Platform,
     exitCode;
 
 import 'suite.dart' show
@@ -23,9 +23,6 @@ import 'suite.dart' show
 
 import '../testing.dart' show
     TestDescription;
-
-import 'test_root.dart' show
-    TestRoot;
 
 import 'test_dart/status_file_parser.dart' show
     Expectation,
@@ -42,7 +39,8 @@ import 'log.dart' show
     logMessage,
     logSuiteComplete,
     logTestComplete,
-    logUnexpectedResult;
+    logUnexpectedResult,
+    splitLines;
 
 typedef Future<ChainContext> CreateContext(Chain);
 
@@ -73,6 +71,27 @@ class Chain extends Suite {
         json["exclude"].map((String p) => new RegExp(p)));
     return new Chain(
         name, kind, source, uri, statusFile, pattern, exclude);
+  }
+
+  void writeImportOn(StringSink sink) {
+    sink.write("import '");
+    sink.write(source);
+    sink.write("' as ");
+    sink.write(name);
+    sink.writeln(";");
+  }
+
+  void writeClosureOn(StringSink sink) {
+    sink.write('    "');
+    sink.write(name);
+    sink.write('": () => runChain(');
+    sink.write(name);
+    sink.writeln(".createContext, r'''");
+    const String jsonExtraIndent = "    ";
+    sink.write(jsonExtraIndent);
+    sink.writeAll(splitLines(new JsonEncoder.withIndent("  ").convert(this)),
+        jsonExtraIndent);
+    sink.writeln("'''),");
   }
 
   Map toJson() {
@@ -219,30 +238,5 @@ Future<Null> runChain(CreateContext f, String json) {
     print("Running ${suite.name}");
     ChainContext context = await f(suite);
     return context.run(suite);
-  });
-}
-
-/// This is called from a Chain suite, and helps implement main. In most cases,
-/// main will look like this:
-///
-///     main(List<String> arguments) => runMe(arguments, createContext);
-///
-/// The optional argument [configurationPath] should be used when
-/// `testing.json` isn't located in the current working directory and is a path
-/// relative to `Platform.script`.
-Future<Null> runMe(
-    List<String> arguments, CreateContext f, [String configurationPath]) {
-  return withErrorHandling(() async {
-    Uri configuration = configurationPath == null
-        ? Uri.base.resolve("testing.json")
-        : Platform.script.resolve(configurationPath);
-    TestRoot testRoot = await TestRoot.fromUri(configuration);
-    for (Chain suite in testRoot.toolChains) {
-      if (Platform.script == suite.source) {
-        print("Running suite ${suite.name}...");
-        ChainContext context = await f(suite);
-        await context.run(suite);
-      }
-    }
   });
 }

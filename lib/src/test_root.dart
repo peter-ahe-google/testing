@@ -13,11 +13,11 @@ import 'dart:convert' show
 import 'dart:io' show
     File;
 
-import 'dart:isolate' show
-    Isolate;
-
-import 'chain.dart' show
+import '../testing.dart' show
     Chain;
+
+import 'analyze.dart' show
+    Analyze;
 
 import 'suite.dart' show
     Dart,
@@ -54,12 +54,13 @@ class TestRoot {
 
   final List<Suite> suites;
 
-  final List<Uri> urisToAnalyze;
+  TestRoot(this.packages, this.suites);
 
-  final List<RegExp> excludedFromAnalysis;
+  Analyze get analyze => suites.last;
 
-  TestRoot(this.packages, this.suites, this.urisToAnalyze,
-      this.excludedFromAnalysis);
+  List<Uri> get urisToAnalyze => analyze.uris;
+
+  List<RegExp> get excludedFromAnalysis => analyze.exclude;
 
   Iterable<Dart> get dartSuites {
     return new List<Dart>.from(
@@ -86,21 +87,11 @@ class TestRoot {
     List<Suite> suites = new List<Suite>.from(
         data["suites"].map((Map json) => new Suite.fromJsonMap(uri, json)));
 
-    List<Uri> urisToAnalyze = new List<Uri>.from(data["analyze"]["uris"]
-        .map((String relative) => uri.resolve(relative)));
+    Analyze analyze = await Analyze.fromJsonMap(uri, data["analyze"], suites);
 
-    // Also analyze the sources of any Chain suites.
-    urisToAnalyze.addAll(suites
-        .where((Suite suite) => suite is Chain)
-        .map((Chain suite) => suite.source));
+    suites.add(analyze);
 
-    for (int i = 0; i < urisToAnalyze.length; i++) {
-      urisToAnalyze[i] = await Isolate.resolvePackageUri(urisToAnalyze[i]);
-    }
-    List<RegExp> excludedFromAnalysis = new List<RegExp>.from(
-        data["analyze"]["exclude"].map((String p) => new RegExp(p)));
-
-    return new TestRoot(packages, suites, urisToAnalyze, excludedFromAnalysis);
+    return new TestRoot(packages, suites);
   }
 
   static void addDefaults(Map data) {

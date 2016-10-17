@@ -22,6 +22,24 @@ class TestDescription implements Comparable<TestDescription> {
     return baseName.substring(0, baseName.length - ".dart".length);
   }
 
+  String get escapedName => shortName.replaceAll("/", "__");
+
+  void writeImportOn(StringSink sink) {
+    sink.write("import '");
+    sink.write(uri);
+    sink.write("' as ");
+    sink.write(escapedName);
+    sink.writeln(" show main;");
+  }
+
+  void writeClosureOn(StringSink sink) {
+    sink.write('    "');
+    sink.write(shortName);
+    sink.write('": ');
+    sink.write(escapedName);
+    sink.writeln('.main,');
+  }
+
   static TestDescription from(
       Uri root, FileSystemEntity entity, {Pattern pattern}) {
     if (entity is! File) return null;

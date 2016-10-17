@@ -18,7 +18,13 @@ const String cursorUp = "\u001b[1A";
 /// See [CSI codes](https://en.wikipedia.org/wiki/ANSI_escape_code#CSI_codes).
 const String eraseLine = "\u001b[2K";
 
-const bool isVerbose = const bool.fromEnvironment("verbose");
+bool _isVerbose = const bool.fromEnvironment("verbose");
+
+bool get isVerbose => _isVerbose;
+
+void enableVerboseOutput() {
+  _isVerbose = true;
+}
 
 void logTestComplete(int completed, int failed, int total, {String suffix}) {
   suffix ??= "";
@@ -36,6 +42,12 @@ void logTestComplete(int completed, int failed, int total, {String suffix}) {
 void logMessage(Object message) {
   if (isVerbose) {
     print("$message");
+  }
+}
+
+void logNumberedLines(String text) {
+  if (isVerbose) {
+    print(numberedLines(text));
   }
 }
 
@@ -57,7 +69,34 @@ void logSuiteComplete() {
   }
 }
 
+void logUncaughtError(error, StackTrace stackTrace) {
+  logMessage(error);
+  if (stackTrace != null) {
+    logMessage(stackTrace);
+  }
+}
+
 String pad(Object o, int pad) {
   String result = (" " * pad) + "$o";
   return result.substring(result.length - pad);
+}
+
+String numberedLines(String text) {
+  StringBuffer result = new StringBuffer();
+  int lineNumber = 1;
+  List<String> lines = splitLines(text);
+  int pad = "${lines.length}".length;
+  String fill = " " * pad;
+  for (String line in lines) {
+    String paddedLineNumber = "$fill$lineNumber";
+    paddedLineNumber =
+        paddedLineNumber.substring(paddedLineNumber.length - pad);
+    result.write("$paddedLineNumber: $line");
+    lineNumber++;
+  }
+  return '$result';
+}
+
+List<String> splitLines(String text) {
+  return text.split(new RegExp('^', multiLine: true));
 }
