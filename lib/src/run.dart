@@ -130,12 +130,12 @@ Future<Null> runProgram(String program, Uri packages) async {
   Isolate isolate = await Isolate.spawnUri(dataUri, <String>[], null,
       paused: true, onExit: exitPort.sendPort, errorsAreFatal: false,
       checked: true, packageConfig: packages);
-  await acknowledgeControlMessages(isolate, resume: isolate.pauseCapability);
   List error;
   var subscription = isolate.errors.listen((data) {
     error = data;
     exitPort.close();
   });
+  await acknowledgeControlMessages(isolate, resume: isolate.pauseCapability);
   await for (var _ in exitPort) {
     exitPort.close();
   }
@@ -156,18 +156,19 @@ class SuiteRunner {
     List<TestDescription> descriptions = await list().toList();
     testUris = <Uri>[];
     StringBuffer imports = new StringBuffer();
-    StringBuffer closures = new StringBuffer();
+    StringBuffer dart = new StringBuffer();
+    StringBuffer chain = new StringBuffer();
 
     for (TestDescription description in descriptions) {
       testUris.add(await Isolate.resolvePackageUri(description.uri));
       description.writeImportOn(imports);
-      description.writeClosureOn(closures);
+      description.writeClosureOn(dart);
     }
 
     for (Chain suite in suites.where((Suite suite) => suite is Chain)) {
       testUris.add(await Isolate.resolvePackageUri(suite.source));
       suite.writeImportOn(imports);
-      suite.writeClosureOn(closures);
+      suite.writeClosureOn(chain);
     }
 
     if (testUris.isEmpty) return null;
@@ -188,8 +189,9 @@ ${imports.toString().trim()}
 Future<Null> main() async {
   if ($isVerbose) enableVerboseOutput();
   await runTests(<String, Function> {
-      ${splitLines(closures.toString().trim()).join('      ')}
+      ${splitLines(dart.toString().trim()).join('      ')}
   });
+  ${splitLines(chain.toString().trim()).join('  ')}
 }
 """;
   }

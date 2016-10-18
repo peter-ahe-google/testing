@@ -82,16 +82,14 @@ class Chain extends Suite {
   }
 
   void writeClosureOn(StringSink sink) {
-    sink.write('    "');
-    sink.write(name);
-    sink.write('": () => runChain(');
+    sink.write("runChain(");
     sink.write(name);
     sink.writeln(".createContext, r'''");
     const String jsonExtraIndent = "    ";
     sink.write(jsonExtraIndent);
     sink.writeAll(splitLines(new JsonEncoder.withIndent("  ").convert(this)),
         jsonExtraIndent);
-    sink.writeln("'''),");
+    sink.writeln("''');");
   }
 
   Map toJson() {
