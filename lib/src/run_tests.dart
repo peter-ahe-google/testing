@@ -8,7 +8,9 @@ import 'dart:async' show
     Future;
 
 import 'dart:io' show
-    File;
+    Directory,
+    File,
+    FileSystemEntity;
 
 import 'dart:io' as io show
     exitCode;
@@ -82,7 +84,34 @@ main(List<String> arguments) => withErrorHandling(() async {
     return fail("Usage: run_tests.dart [configuration_file]");
   }
   String configurationPath = cl.arguments.length == 0
-      ? "testing.json" : cl.arguments.first;
+      ? null : cl.arguments.first;
+  if (configurationPath == null) {
+    configurationPath = "testing.json";
+    if (!await new File(configurationPath).exists()) {
+      Directory test = new Directory("test");
+      if (await test.exists()) {
+        List<FileSystemEntity> candiates =
+            await test.list(recursive: true, followLinks: false)
+            .where((FileSystemEntity entity) {
+              return entity is File &&
+                  entity.uri.path.endsWith("/testing.json");
+            }).toList();
+        switch (candiates.length) {
+          case 0:
+            return fail("Couldn't locate: '$configurationPath'.");
+
+          case 1:
+            configurationPath = candiates.single.path;
+            break;
+
+          default:
+            return fail("Usage: run_tests.dart [configuration_file]\n"
+                "Where configuration_file is one of:\n  "
+                "${candiates.map((File file) => file.path).join('\n  ')}");
+        }
+      }
+    }
+  }
   logMessage("Reading configuration file '$configurationPath'.");
   Uri configuration =
       await Isolate.resolvePackageUri(Uri.base.resolve(configurationPath));
