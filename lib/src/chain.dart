@@ -42,7 +42,8 @@ import 'log.dart' show
     logUnexpectedResult,
     splitLines;
 
-typedef Future<ChainContext> CreateContext(Chain);
+typedef Future<ChainContext> CreateContext(
+    Chain suite, Map<String, String> environment);
 
 /// A test suite for tool chains, for example, a compiler.
 class Chain extends Suite {
@@ -84,7 +85,7 @@ class Chain extends Suite {
   void writeClosureOn(StringSink sink) {
     sink.write("runChain(");
     sink.write(name);
-    sink.writeln(".createContext, r'''");
+    sink.writeln(".createContext, environment, r'''");
     const String jsonExtraIndent = "    ";
     sink.write(jsonExtraIndent);
     sink.writeAll(splitLines(new JsonEncoder.withIndent("  ").convert(this)),
@@ -152,7 +153,8 @@ abstract class ChainContext {
         logMessage(sb);
       }
       logTestComplete(++completed, unexpectedResults.length,
-          descriptions.length, suffix: ": ${suite.name}");
+          descriptions.length,
+          suffix: ": ${suite.name}/${description.shortName}");
     }
     logSuiteComplete();
     unexpectedResults.forEach((TestDescription description, Result result) {
@@ -230,11 +232,12 @@ class Result<O> {
 }
 
 /// This is called from generated code.
-Future<Null> runChain(CreateContext f, String json) {
+Future<Null> runChain(
+    CreateContext f, Map<String, String> environment, String json) {
   return withErrorHandling(() async {
     Chain suite = new Suite.fromJsonMap(Uri.base, JSON.decode(json));
     print("Running ${suite.name}");
-    ChainContext context = await f(suite);
+    ChainContext context = await f(suite, environment);
     return context.run(suite);
   });
 }

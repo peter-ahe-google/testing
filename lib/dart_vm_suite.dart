@@ -6,7 +6,8 @@ library testing.dart_vm_suite;
 
 import 'testing.dart';
 
-Future<ChainContext> createContext(Chain suite) async {
+Future<ChainContext> createContext(
+    Chain suite, Map<String, String> enviroment) async {
   return new VmContext();
 }
 

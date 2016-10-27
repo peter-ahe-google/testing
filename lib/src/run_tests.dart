@@ -55,6 +55,21 @@ class CommandLine {
     }).toSet();
   }
 
+  Map<String, String> get environment {
+    Map<String, String> result = <String, String>{};
+    for (String option in options) {
+      if (option.startsWith("-D")) {
+        int equalIndex = option.indexOf("=");
+        if (equalIndex != -1) {
+          String key = option.substring(2, equalIndex);
+          String value = option.substring(equalIndex + 1);
+          result[key] = value;
+        }
+      }
+    }
+    return result;
+  }
+
   static CommandLine parse(List<String> arguments) {
     int index = arguments.indexOf("--");
     Set<String> options;
@@ -83,6 +98,7 @@ main(List<String> arguments) => withErrorHandling(() async {
   if (cl.arguments.length > 1) {
     return fail("Usage: run_tests.dart [configuration_file]");
   }
+  Map<String, String> environment = cl.environment;
   String configurationPath = cl.arguments.length == 0
       ? null : cl.arguments.first;
   if (configurationPath == null) {
@@ -124,7 +140,7 @@ main(List<String> arguments) => withErrorHandling(() async {
   }
   TestRoot root = await TestRoot.fromUri(configuration);
   Set<String> skip = cl.skip;
-  SuiteRunner runner = new SuiteRunner(
+  SuiteRunner runner = new SuiteRunner(environment,
       root.suites.where((s) => !skip.contains(s.name)).toList());
   String program = await runner.generateDartProgram();
   await runner.analyze(root.packages);
