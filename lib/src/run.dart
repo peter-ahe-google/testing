@@ -76,7 +76,7 @@ Future<Null> runMe(
       if (Platform.script == suite.source) {
         print("Running suite ${suite.name}...");
         ChainContext context = await f(suite, <String, String>{});
-        await context.run(suite);
+        await context.run(suite, null);
       }
     }
   });
@@ -114,9 +114,9 @@ Future<Null> run(
     [String configurationPath]) {
   return withErrorHandling(() async {
     TestRoot root = await computeTestRoot(configurationPath, Uri.base);
-    SuiteRunner runner = new SuiteRunner(<String, String>{},
-        root.suites.where((Suite suite) => suiteNames.contains(suite.name))
-        .toList());
+    List<Suite> suites = root.suites.where(
+        (Suite suite) => suiteNames.contains(suite.name)).toList();
+    SuiteRunner runner = new SuiteRunner(suites, <String, String>{}, null);
     String program = await runner.generateDartProgram();
     await runner.analyze(root.packages);
     if (program != null) {
@@ -149,13 +149,16 @@ Future<Null> runProgram(String program, Uri packages) async {
 }
 
 class SuiteRunner {
+  final List<Suite> suites;
+
   final Map<String, String> environment;
 
-  final List<Suite> suites;
+  final List<String> selectors;
 
   List<Uri> testUris;
 
-  SuiteRunner(this.environment, this.suites);
+  SuiteRunner(this.suites, this.environment, Iterable<String> selectors)
+      : selectors = selectors.toList(growable: false);
 
   Future<String> generateDartProgram() async {
     List<TestDescription> descriptions = await list().toList();
@@ -196,6 +199,7 @@ ${imports.toString().trim()}
 Future<Null> main() async {
   if ($isVerbose) enableVerboseOutput();
   Map<String, String> environment = JSON.decode('${JSON.encode(environment)}');
+  Set<String> selectors = JSON.decode('${JSON.encode(selectors)}').toSet();
   await runTests(<String, Function> {
       ${splitLines(dart.toString().trim()).join('      ')}
   });

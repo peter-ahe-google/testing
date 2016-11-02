@@ -85,7 +85,7 @@ class Chain extends Suite {
   void writeClosureOn(StringSink sink) {
     sink.write("runChain(");
     sink.write(name);
-    sink.writeln(".createContext, environment, r'''");
+    sink.writeln(".createContext, environment, selectors, r'''");
     const String jsonExtraIndent = "    ";
     sink.write(jsonExtraIndent);
     sink.writeAll(splitLines(new JsonEncoder.withIndent("  ").convert(this)),
@@ -111,7 +111,7 @@ abstract class ChainContext {
 
   List<Step> get steps;
 
-  Future<Null> run(Chain suite) async {
+  Future<Null> run(Chain suite, Set<String> selectors) async {
     TestExpectations expectations = await ReadTestExpectations(
         <String>[suite.statusFile.toFilePath()], {});
     List<TestDescription> descriptions = await list(suite).toList();
@@ -120,6 +120,12 @@ abstract class ChainContext {
         <TestDescription, Result>{};
     int completed = 0;
     for (TestDescription description in descriptions) {
+      String selector = "${suite.name}/${description.shortName}";
+      if (selectors.isNotEmpty &&
+          !selectors.contains(selector) &&
+          !selectors.contains(suite.name)) {
+        continue;
+      }
       Set<Expectation> expectedOutcomes =
           expectations.expectations(description.shortName);
       Result result;
@@ -153,8 +159,7 @@ abstract class ChainContext {
         logMessage(sb);
       }
       logTestComplete(++completed, unexpectedResults.length,
-          descriptions.length,
-          suffix: ": ${suite.name}/${description.shortName}");
+          descriptions.length, suffix: ": $selector");
     }
     logSuiteComplete();
     unexpectedResults.forEach((TestDescription description, Result result) {
@@ -233,11 +238,12 @@ class Result<O> {
 
 /// This is called from generated code.
 Future<Null> runChain(
-    CreateContext f, Map<String, String> environment, String json) {
+    CreateContext f, Map<String, String> environment, Set<String> selectors,
+    String json) {
   return withErrorHandling(() async {
     Chain suite = new Suite.fromJsonMap(Uri.base, JSON.decode(json));
     print("Running ${suite.name}");
     ChainContext context = await f(suite, environment);
-    return context.run(suite);
+    return context.run(suite, selectors);
   });
 }

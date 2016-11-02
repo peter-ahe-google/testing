@@ -38,6 +38,9 @@ import 'run.dart' show
     SuiteRunner,
     runProgram;
 
+import 'suite.dart' show
+    Suite;
+
 class CommandLine {
   final Set<String> options;
   final List<String> arguments;
@@ -70,6 +73,15 @@ class CommandLine {
     return result;
   }
 
+  Set<String> get selectedSuites {
+    return selectors.map((String selector) {
+      int index = selector.indexOf("/");
+      return index == -1 ? selector : selector.substring(0, index);
+    }).toSet();
+  }
+
+  Iterable<String> get selectors => arguments.skip(1);
+
   static CommandLine parse(List<String> arguments) {
     int index = arguments.indexOf("--");
     Set<String> options;
@@ -94,9 +106,6 @@ main(List<String> arguments) => withErrorHandling(() async {
   CommandLine cl = CommandLine.parse(arguments);
   if (cl.verbose) {
     enableVerboseOutput();
-  }
-  if (cl.arguments.length > 1) {
-    return fail("Usage: run_tests.dart [configuration_file]");
   }
   Map<String, String> environment = cl.environment;
   String configurationPath = cl.arguments.length == 0
@@ -140,8 +149,12 @@ main(List<String> arguments) => withErrorHandling(() async {
   }
   TestRoot root = await TestRoot.fromUri(configuration);
   Set<String> skip = cl.skip;
-  SuiteRunner runner = new SuiteRunner(environment,
-      root.suites.where((s) => !skip.contains(s.name)).toList());
+  Set<String> selectedSuites = cl.selectedSuites;
+  List<Suite> suites = root.suites.where((s) {
+    return !skip.contains(s.name) &&
+        (selectedSuites.isEmpty || selectedSuites.contains(s.name));
+  }).toList();
+  SuiteRunner runner = new SuiteRunner(suites, environment, cl.selectors);
   String program = await runner.generateDartProgram();
   await runner.analyze(root.packages);
   Stopwatch sw = new Stopwatch()..start();
