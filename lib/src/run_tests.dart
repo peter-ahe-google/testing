@@ -80,7 +80,57 @@ class CommandLine {
     }).toSet();
   }
 
-  Iterable<String> get selectors => arguments.skip(1);
+  Iterable<String> get selectors => arguments;
+
+  Future<Uri> get configuration async {
+    const String configPrefix = "--config=";
+    List<String> configurationPaths = options
+        .where((String option) => option.startsWith(configPrefix))
+        .map((String option) => option.substring(configPrefix.length))
+        .toList();
+    if (configurationPaths.length > 1) {
+      return fail("Only one --config option is supported");
+    }
+    String configurationPath;
+    if (configurationPaths.length == 1) {
+      configurationPath = configurationPaths.single;
+    } else {
+      configurationPath = "testing.json";
+      if (!await new File(configurationPath).exists()) {
+        Directory test = new Directory("test");
+        if (await test.exists()) {
+          List<FileSystemEntity> candiates =
+              await test.list(recursive: true, followLinks: false)
+              .where((FileSystemEntity entity) {
+                  return entity is File &&
+                  entity.uri.path.endsWith("/testing.json");
+                }).toList();
+          switch (candiates.length) {
+            case 0:
+              return fail("Couldn't locate: '$configurationPath'.");
+
+            case 1:
+              configurationPath = candiates.single.path;
+              break;
+
+            default:
+              return fail(
+                  "Usage: run_tests.dart [$configPrefix=configuration_file]\n"
+                  "Where configuration_file is one of:\n  "
+                  "${candiates.map((File file) => file.path).join('\n  ')}");
+          }
+        }
+      }
+    }
+    logMessage("Reading configuration file '$configurationPath'.");
+    Uri configuration =
+        await Isolate.resolvePackageUri(Uri.base.resolve(configurationPath));
+    if (configuration == null ||
+        !await new File.fromUri(configuration).exists()) {
+      return fail("Couldn't locate: '$configurationPath'.");
+    }
+    return configuration;
+  }
 
   static CommandLine parse(List<String> arguments) {
     int index = arguments.indexOf("--");
@@ -98,52 +148,20 @@ class CommandLine {
   }
 }
 
+fail(String message) {
+  print(message);
+  io.exitCode = 1;
+  return null;
+}
+
 main(List<String> arguments) => withErrorHandling(() async {
-  fail(String message) {
-    print(message);
-    io.exitCode = 1;
-  }
   CommandLine cl = CommandLine.parse(arguments);
   if (cl.verbose) {
     enableVerboseOutput();
   }
   Map<String, String> environment = cl.environment;
-  String configurationPath = cl.arguments.length == 0
-      ? null : cl.arguments.first;
-  if (configurationPath == null) {
-    configurationPath = "testing.json";
-    if (!await new File(configurationPath).exists()) {
-      Directory test = new Directory("test");
-      if (await test.exists()) {
-        List<FileSystemEntity> candiates =
-            await test.list(recursive: true, followLinks: false)
-            .where((FileSystemEntity entity) {
-              return entity is File &&
-                  entity.uri.path.endsWith("/testing.json");
-            }).toList();
-        switch (candiates.length) {
-          case 0:
-            return fail("Couldn't locate: '$configurationPath'.");
-
-          case 1:
-            configurationPath = candiates.single.path;
-            break;
-
-          default:
-            return fail("Usage: run_tests.dart [configuration_file]\n"
-                "Where configuration_file is one of:\n  "
-                "${candiates.map((File file) => file.path).join('\n  ')}");
-        }
-      }
-    }
-  }
-  logMessage("Reading configuration file '$configurationPath'.");
-  Uri configuration =
-      await Isolate.resolvePackageUri(Uri.base.resolve(configurationPath));
-  if (configuration == null ||
-      !await new File.fromUri(configuration).exists()) {
-    return fail("Couldn't locate: '$configurationPath'.");
-  }
+  Uri configuration = await cl.configuration;
+  if (configuration == null) return;
   if (!isVerbose) {
     print("Use --verbose to display more details.");
   }
