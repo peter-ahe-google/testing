@@ -133,8 +133,10 @@ abstract class ChainContext {
       // the output of step n.
       dynamic input = description;
       StringBuffer sb = new StringBuffer();
-      bool hasUnexpectedResult = false;
+      // Records the outcome of the last step that was run.
+      Step lastStep = null;
       for (Step step in steps) {
+        lastStep = step;
         result = await runGuarded(() async {
           print("Running ${step.name}.");
           try {
@@ -146,16 +148,23 @@ abstract class ChainContext {
         if (result.outcome == Expectation.PASS) {
           input = result.output;
         } else {
-          if (!expectedOutcomes.contains(result.outcome)) {
-            hasUnexpectedResult = true;
-            result.addLog("$sb");
-            unexpectedResults[description] = result;
-            logUnexpectedResult(description, result);
-          }
           break;
         }
       }
-      if (!hasUnexpectedResult) {
+      if (steps.isNotEmpty && steps.last == lastStep &&
+          description.shortName.endsWith("negative_test")) {
+        if (result.outcome == Expectation.PASS) {
+          result.addLog("Negative test didn't report an error.\n");
+        } else if (result.outcome == Expectation.FAIL) {
+          result.addLog("Negative test reported an error as expeceted.\n");
+        }
+        result = result.toNegativeTestResult();
+      }
+      if (!expectedOutcomes.contains(result.outcome)) {
+        result.addLog("$sb");
+        unexpectedResults[description] = result;
+        logUnexpectedResult(description, result);
+      } else {
         logMessage(sb);
       }
       logTestComplete(++completed, unexpectedResults.length,
@@ -233,6 +242,17 @@ class Result<O> {
 
   void addLog(String log) {
     logs.add(log);
+  }
+
+  Result<O> toNegativeTestResult() {
+    Expectation outcome = this.outcome;
+    if (outcome == Expectation.PASS) {
+      outcome = Expectation.FAIL;
+    } else if (outcome == Expectation.FAIL) {
+      outcome = Expectation.PASS;
+    }
+    return new Result<O>(output, outcome, error, trace)
+        ..logs.addAll(logs);
   }
 }
 
