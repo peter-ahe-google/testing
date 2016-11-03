@@ -76,7 +76,7 @@ Future<Null> runMe(
       if (Platform.script == suite.source) {
         print("Running suite ${suite.name}...");
         ChainContext context = await f(suite, <String, String>{});
-        await context.run(suite, null);
+        await context.run(suite, new Set<String>());
       }
     }
   });
