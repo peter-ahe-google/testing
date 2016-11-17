@@ -83,7 +83,7 @@ class Chain extends Suite {
   }
 
   void writeClosureOn(StringSink sink) {
-    sink.write("runChain(");
+    sink.write("await runChain(");
     sink.write(name);
     sink.writeln(".createContext, environment, selectors, r'''");
     const String jsonExtraIndent = "    ";
