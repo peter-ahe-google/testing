@@ -13,7 +13,9 @@ abstract class Suite {
 
   final String kind;
 
-  Suite(this.name, this.kind);
+  final Uri statusFile;
+
+  Suite(this.name, this.kind, this.statusFile);
 
   factory Suite.fromJsonMap(Uri base, Map json) {
     String kind = json["kind"].toLowerCase();
@@ -67,7 +69,7 @@ class Dart extends Suite {
   final List<RegExp> exclude;
 
   Dart(String name, this.uri, this.pattern, this.exclude)
-      : super(name, "dart");
+      : super(name, "dart", null);
 
   factory Dart.fromJsonMap(Uri base, Map json, String name) {
     Uri uri = base.resolve(json["path"]);

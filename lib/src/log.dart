@@ -7,8 +7,14 @@ library testing.log;
 import 'chain.dart' show
     Result;
 
+import 'suite.dart' show
+    Suite;
+
 import 'test_description.dart' show
     TestDescription;
+
+import 'test_dart/status_file_parser.dart' show
+    Expectation;
 
 /// ANSI escape code for moving cursor one line up.
 /// See [CSI codes](https://en.wikipedia.org/wiki/ANSI_escape_code#CSI_codes).
@@ -26,12 +32,15 @@ void enableVerboseOutput() {
   _isVerbose = true;
 }
 
-void logTestComplete(int completed, int failed, int total, {String suffix}) {
-  suffix ??= "";
+void logTestComplete(int completed, int failed, int total,
+    Suite suite, TestDescription description) {
   String percent = pad((completed / total * 100.0).toStringAsFixed(1), 5);
   String good = pad(completed, 5);
   String bad = pad(failed, 5);
-  String message = "[ $percent% | +$good | -$bad ]$suffix";
+  String message = "[ $percent% | +$good | -$bad ]";
+  if (suite != null) {
+    message += ": ${suite.name}/${description.shortName}";
+  }
   if (isVerbose) {
     print(message);
   } else {
@@ -51,8 +60,19 @@ void logNumberedLines(String text) {
   }
 }
 
-void logUnexpectedResult(TestDescription description, Result result) {
-  print("${eraseLine}UNEXPECTED: ${description.shortName}");
+void logUnexpectedResult(Suite suite, TestDescription description,
+    Result result, Set<Expectation> expectedOutcomes) {
+  print("${eraseLine}UNEXPECTED: ${suite.name}/${description.shortName}");
+  Uri statusFile = suite.statusFile;
+  if (statusFile != null) {
+    String path = statusFile.toFilePath();
+    if (result.outcome == Expectation.PASS) {
+      print("The test unexpectedly passed, please update $path.");
+    } else {
+      print("The test had the outcome ${result.outcome}, but the status file "
+          "($path) allows these outcomes: ${expectedOutcomes.join(' ')}");
+    }
+  }
   String log = result.log;
   if (log.isNotEmpty) {
     print(log);

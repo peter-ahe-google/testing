@@ -199,7 +199,7 @@ withErrorHandling(() async {
       print(sb);
       rethrow;
     }
-    logTestComplete(++completed, 0, tests.length);
+    logTestComplete(++completed, 0, tests.length, null, null);
   }
   logSuiteComplete();
 });

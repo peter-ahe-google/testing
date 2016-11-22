@@ -51,15 +51,13 @@ class Chain extends Suite {
 
   final Uri uri;
 
-  final Uri statusFile;
-
   final List<RegExp> pattern;
 
   final List<RegExp> exclude;
 
-  Chain(String name, String kind, this.source, this.uri, this.statusFile,
+  Chain(String name, String kind, this.source, this.uri, Uri statusFile,
       this.pattern, this.exclude)
-      : super(name, kind);
+      : super(name, kind, statusFile);
 
   factory Chain.fromJsonMap(
       Uri base, Map json, String name, String kind) {
@@ -118,6 +116,8 @@ abstract class ChainContext {
     descriptions.sort();
     Map<TestDescription, Result> unexpectedResults =
         <TestDescription, Result>{};
+    Map<TestDescription, Set<Expectation>> unexpectedOutcomes =
+        <TestDescription, Set<Expectation>>{};
     int completed = 0;
     for (TestDescription description in descriptions) {
       String selector = "${suite.name}/${description.shortName}";
@@ -163,17 +163,19 @@ abstract class ChainContext {
       if (!expectedOutcomes.contains(result.outcome)) {
         result.addLog("$sb");
         unexpectedResults[description] = result;
-        logUnexpectedResult(description, result);
+        unexpectedOutcomes[description] = expectedOutcomes;
+        logUnexpectedResult(suite, description, result, expectedOutcomes);
       } else {
         logMessage(sb);
       }
       logTestComplete(++completed, unexpectedResults.length,
-          descriptions.length, suffix: ": $selector");
+          descriptions.length, suite, description);
     }
     logSuiteComplete();
     unexpectedResults.forEach((TestDescription description, Result result) {
       exitCode = 1;
-      logUnexpectedResult(description, result);
+      logUnexpectedResult(suite, description, result,
+          unexpectedOutcomes[description]);
     });
   }
 

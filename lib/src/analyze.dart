@@ -31,7 +31,7 @@ class Analyze extends Suite {
   final List<RegExp> exclude;
 
   Analyze(this.uris, this.exclude)
-      : super("analyze", "analyze");
+      : super("analyze", "analyze", null);
 
   Future<Null> run(Uri packages, List<Uri> extraUris) {
     List<Uri> allUris = new List<Uri>.from(uris);
