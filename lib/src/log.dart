@@ -117,9 +117,11 @@ void logUnexpectedResult(Suite suite, TestDescription description,
   if (log.isNotEmpty) {
     print(log);
   }
-  print(result.error);
-  if (result.trace != null) {
-    print(result.trace);
+  if (result.error != null) {
+    print(result.error);
+    if (result.trace != null) {
+      print(result.trace);
+    }
   }
 }
 
