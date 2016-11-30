@@ -55,4 +55,13 @@ class TestDescription implements Comparable<TestDescription> {
   }
 
   int compareTo(TestDescription other) => "$uri".compareTo("${other.uri}");
+
+  String formatError(String message) {
+    String base = Uri.base.toFilePath();
+    String path = uri.toFilePath();
+    if (path.startsWith(base)) {
+      path = path.substring(base.length);
+    }
+    return "$path:$message";
+  }
 }

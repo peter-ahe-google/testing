@@ -5,13 +5,15 @@
 library testing.stdio_process;
 
 import 'dart:async' show
-    Future;
+    Future,
+    Timer;
 
 import 'dart:convert' show
     UTF8;
 
 import 'dart:io' show
-    Process;
+    Process,
+    ProcessSignal;
 
 import 'chain.dart' show
     Result;
@@ -32,8 +34,24 @@ class StdioProcess {
   }
 
   static Future<StdioProcess> run(
-      String executable, List<String> arguments, {String input}) async {
+      String executable, List<String> arguments,
+      {String input, Duration timeout: const Duration(seconds: 60)}) async {
     Process process = await Process.start(executable, arguments);
+    Timer timer;
+    StringBuffer sb = new StringBuffer();
+    timer = new Timer(timeout, () {
+      sb.write("Process timed out: ");
+      sb.write(executable);
+      sb.write(" ");
+      sb.writeAll(arguments, " ");
+      sb.writeln();
+      sb.writeln("Sending SIGTERM to process");
+      process.kill();
+      timer = new Timer(const Duration(seconds: 10), () {
+        sb.writeln("Sending SIGKILL to process");
+        process.kill(ProcessSignal.SIGKILL);
+      });
+    });
     if (input != null) {
       process.stdin.write(input);
     }
@@ -43,7 +61,7 @@ class StdioProcess {
     Future<List<String>> stderrFuture =
         process.stderr.transform(UTF8.decoder).toList();
     int exitCode = await process.exitCode;
-    StringBuffer sb = new StringBuffer();
+    timer.cancel();
     sb.writeAll(await stdoutFuture);
     sb.writeAll(await stderrFuture);
     await closeFuture;

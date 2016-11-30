@@ -5,7 +5,8 @@
 library testing.log;
 
 import 'chain.dart' show
-    Result;
+    Result,
+    Step;
 
 import 'suite.dart' show
     Suite;
@@ -24,6 +25,8 @@ const String cursorUp = "\u001b[1A";
 /// See [CSI codes](https://en.wikipedia.org/wiki/ANSI_escape_code#CSI_codes).
 const String eraseLine = "\u001b[2K";
 
+final Stopwatch wallclock = new Stopwatch()..start();
+
 bool _isVerbose = const bool.fromEnvironment("verbose");
 
 bool get isVerbose => _isVerbose;
@@ -34,18 +37,55 @@ void enableVerboseOutput() {
 
 void logTestComplete(int completed, int failed, int total,
     Suite suite, TestDescription description) {
-  String percent = pad((completed / total * 100.0).toStringAsFixed(1), 5);
-  String good = pad(completed, 5);
-  String bad = pad(failed, 5);
-  String message = "[ $percent% | +$good | -$bad ]";
+  String message = formatProgress(completed, failed, total);
   if (suite != null) {
-    message += ": ${suite.name}/${description.shortName}";
+    message += ": ${formatTestDescription(suite, description)}";
   }
+  logProgress(message);
+}
+
+void logStepStart(int completed, int failed, int total,
+    Suite suite, TestDescription description, Step step) {
+  String message = formatProgress(completed, failed, total);
+  if (suite != null) {
+    message += ": ${formatTestDescription(suite, description)} ${step.name}";
+    if (step.isAsync) {
+      message += "...";
+    }
+  }
+  logProgress(message);
+}
+
+void logStepComplete(int completed, int failed, int total,
+    Suite suite, TestDescription description, Step step) {
+  if (!step.isAsync) return;
+  String message = formatProgress(completed, failed, total);
+  if (suite != null) {
+    message += ": ${formatTestDescription(suite, description)} ${step.name}!";
+  }
+  logProgress(message);
+}
+
+void logProgress(String message) {
   if (isVerbose) {
     print(message);
   } else {
     print("$eraseLine$message$cursorUp");
   }
+}
+
+String formatProgress(int completed, int failed, int total) {
+  Duration elapsed = wallclock.elapsed;
+  String percent = pad((completed / total * 100.0).toStringAsFixed(1), 5);
+  String good = pad(completed, 5);
+  String bad = pad(failed, 5);
+  String minutes = pad(elapsed.inMinutes, 2, filler: "0");
+  String seconds = pad(elapsed.inSeconds % 60, 2, filler: "0");
+  return "[ $minutes:$seconds | $percent% | +$good | -$bad ]";
+}
+
+String formatTestDescription(Suite suite, TestDescription description) {
+  return "${suite.name}/${description.shortName}";
 }
 
 void logMessage(Object message) {
@@ -96,8 +136,8 @@ void logUncaughtError(error, StackTrace stackTrace) {
   }
 }
 
-String pad(Object o, int pad) {
-  String result = (" " * pad) + "$o";
+String pad(Object o, int pad, {String filler: " "}) {
+  String result = (filler * pad) + "$o";
   return result.substring(result.length - pad);
 }
 
