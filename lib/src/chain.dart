@@ -51,6 +51,8 @@ import 'multitest.dart' show
 typedef Future<ChainContext> CreateContext(
     Chain suite, Map<String, String> environment);
 
+
+
 /// A test suite for tool chains, for example, a compiler.
 class Chain extends Suite {
   final Uri source;
@@ -196,7 +198,8 @@ abstract class ChainContext {
           }
           if (description.multitestExpectations != null) {
             if (isError(description.multitestExpectations)) {
-              result = result.toNegativeTestResult();
+              result = toNegativeTestResult(
+                  result, description.multitestExpectations);
             }
           } else if (lastStep == lastStepRun &&
               description.shortName.endsWith("negative_test")) {
@@ -205,7 +208,7 @@ abstract class ChainContext {
             } else if (result.outcome == Expectation.FAIL) {
               result.addLog("Negative test reported an error as expeceted.\n");
             }
-            result = result.toNegativeTestResult();
+            result = toNegativeTestResult(result);
           }
           if (!expectedOutcomes.contains(result.outcome)) {
             result.addLog("$sb");
@@ -316,13 +319,7 @@ class Result<O> {
     logs.add(log);
   }
 
-  Result<O> toNegativeTestResult() {
-    Expectation outcome = this.outcome;
-    if (outcome == Expectation.PASS) {
-      outcome = Expectation.FAIL;
-    } else if (outcome == Expectation.FAIL) {
-      outcome = Expectation.PASS;
-    }
+  Result<O> copyWithOutcome(Expectation outcome) {
     return new Result<O>(output, outcome, error, trace)
         ..logs.addAll(logs);
   }
@@ -338,4 +335,23 @@ Future<Null> runChain(
     ChainContext context = await f(suite, environment);
     return context.run(suite, selectors);
   });
+}
+
+Result toNegativeTestResult(Result result, [Set<String> expectations]) {
+  Expectation outcome = result.outcome;
+  if (outcome == Expectation.PASS) {
+    if (expectations == null) {
+      outcome = Expectation.FAIL;
+    } else if (expectations.contains("compile-time error")) {
+      outcome = Expectation.MISSING_COMPILETIME_ERROR;
+    } else if (expectations.contains("runtime error") ||
+        expectations.contains("dynamic type error")) {
+      outcome = Expectation.MISSING_RUNTIME_ERROR;
+    } else {
+      outcome = Expectation.FAIL;
+    }
+  } else if (outcome == Expectation.FAIL) {
+    outcome = Expectation.PASS;
+  }
+  return result.copyWithOutcome(outcome);
 }
